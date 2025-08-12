@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit colors="true" bootstrap="vendor/autoload.php" failOnWarning="false" failOnRisky="false">
+  <testsuites>
+    <testsuite name="LlmAiChat">
+      <directory suffix="Test.php">tests</directory>
+    </testsuite>
+  </testsuites>
+  <coverage processUncoveredFiles="false">
+    <include>
+      <directory suffix=".php">src</directory>
+    </include>
+  </coverage>
+</phpunit>

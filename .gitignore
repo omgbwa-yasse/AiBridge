@@ -1,0 +1,33 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Composer (library packages usually ignore lockfile)
+/composer.lock
+
+# IDE/editor
+/.idea/
+/.vscode/
+/.fleet/
+.DS_Store
+Thumbs.db
+
+# Environment / local
+/.env
+/.env.*
+/.env.local
+/.cache/
+/tmp/
+
+# Tests & coverage artifacts
+/.phpunit.result.cache
+/coverage/
+
+# Build artifacts
+/build/
+/dist/
+
+# Misc tool caches
+/.php-cs-fixer.cache
+/.phpactor.json
+/.history
