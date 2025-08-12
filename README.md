@@ -1,82 +1,108 @@
-# LLM CHAT
+# AiBridge
 
-Package Laravel unifié pour interagir avec plusieurs LLM / APIs (OpenAI, Ollama, Gemini, Claude, Grok, etc.) avec support :
+Package Laravel unifié pour interagir avec plusieurs LLM / APIs (OpenAI, Ollama, Gemini, Claude, Grok, etc.) avec support complet pour :
 
-- Chat + Historique
-- Streaming
-- Embeddings
-- Génération d'images
-- Audio (TTS / STT)
-- Structured output (mode JSON simplifié)
-- Facade `AIChat`
+- 💬 **Chat conversationnel** avec historique
+- 🌊 **Streaming** en temps réel
+- 🔍 **Embeddings** pour la recherche sémantique
+- 🎨 **Génération d'images** (DALL-E, Stable Diffusion via Ollama)
+- 🔊 **Audio** (Text-to-Speech et Speech-to-Text)
+- 📋 **Structured output** (mode JSON avec validation de schéma)
+- 🛠️ **Function calling** natif et générique
+- 🎯 **Tools système** extensibles
+- 🔧 **Facade Laravel** `AiBridge` pour un accès simplifié
 
-> Statut: EXPÉRIMENTAL (API susceptible de changer)
+> ✅ **Statut**: Stable - API consolidée après corrections (v1.0)
 
 ## Installation
 
 ```bash
-composer require aibridge/llm-chat
+composer require laravel/aibridge
 ```
 
-Publier la config :
+### Configuration
+
+Publier le fichier de configuration :
 
 ```bash
-php artisan vendor:publish --provider="AiBridge\AIChatServiceProvider" --tag=config
+php artisan vendor:publish --provider="AiBridge\AiBridgeServiceProvider" --tag=config
 ```
 
-Configurer vos variables `.env` :
+### Variables d'environnement
+
+Configurer vos clés API dans `.env` :
 
 ```env
+# OpenAI
 OPENAI_API_KEY=sk-...
+
+# Autres providers
+OLLAMA_ENDPOINT=http://localhost:11434
 GEMINI_API_KEY=...
 CLAUDE_API_KEY=...
 GROK_API_KEY=...
+
+# Providers personnalisés (Azure OpenAI, etc.)
+OPENAI_CUSTOM_API_KEY=...
+OPENAI_CUSTOM_BASE_URL=https://your-azure-openai.openai.azure.com
+OPENAI_CUSTOM_AUTH_HEADER=api-key
+OPENAI_CUSTOM_AUTH_PREFIX=
+
+# Configuration HTTP
+LLM_HTTP_TIMEOUT=30
+LLM_HTTP_RETRY=2
+LLM_HTTP_RETRY_SLEEP=200
 ```
 
-### Accès via le conteneur (app helper)
+## Utilisation de base
 
-Outre la façade `AIChat`, vous pouvez récupérer le manager directement depuis le conteneur en utilisant la clé de service `AiBridge` :
+### Accès via le conteneur Laravel
+
+Récupérer le manager directement depuis le conteneur :
 
 ```php
 $manager = app('AiBridge'); // instance de AiBridge\AiBridgeManager
 $resp = $manager->chat('openai', [
-	['role' => 'user', 'content' => 'Bonjour']
+    ['role' => 'user', 'content' => 'Bonjour']
 ]);
 ```
 
-Si vous préférez l’injection de dépendances, vous pouvez aussi typer `AiBridge\AIChatManager` dans vos constructeurs (Laravel résoudra la classe) :
+Ou via l'injection de dépendances :
 
 ```php
 use AiBridge\AiBridgeManager;
 
-class MyService {
-	public function __construct(private AiBridgeManager $ai) {}
+class MyService 
+{
+    public function __construct(private AiBridgeManager $ai) {}
 
-	public function run(): array {
-		return $this->ai->chat('openai', [ ['role' => 'user', 'content' => 'Hello'] ]);
-	}
+    public function run(): array {
+        return $this->ai->chat('openai', [ 
+            ['role' => 'user', 'content' => 'Hello'] 
+        ]);
+    }
 }
 ```
 
-## Chat basique
+### Chat basique avec facade
 
 ```php
-use AiBridge\Facades\AIChat;
+use AiBridge\Facades\AiBridge;
 
-$res = AIChat::chat('openai', [
-	['role' => 'user', 'content' => 'Bonjour, qui es-tu ?']
+$res = AiBridge::chat('openai', [
+    ['role' => 'user', 'content' => 'Bonjour, qui es-tu ?']
 ]);
 $text = $res['choices'][0]['message']['content'] ?? '';
 ```
 
 ### Alias Laravel (facultatif)
 
-La façade `AIChat` est disponible via auto-discovery du service provider. Si votre application désactive l’auto-discovery ou si vous souhaitez déclarer un alias manuel, ajoutez l’alias suivant à `config/app.php` :
+La façade `AiBridge` est disponible via auto-discovery. Pour un alias personnalisé, ajoutez à `config/app.php` :
 
 ```php
 'aliases' => [
-	// ...
-	'AIChat' => AiBridge\Facades\AIChat::class,
+    // ...
+    'AI' => AiBridge\Facades\AiBridge::class,
 ],
 ```
 
@@ -84,159 +110,382 @@ La façade `AIChat` est disponible via auto-discovery du service provider. Si vo
 
 ```php
 use AiBridge\Support\ChatNormalizer;
-$raw = AIChat::chat('openai', [ ['role' => 'user', 'content' => 'Bonjour'] ]);
+
+$raw = AiBridge::chat('openai', [ 
+    ['role' => 'user', 'content' => 'Bonjour'] 
+]);
 $normalized = ChatNormalizer::normalize($raw);
 echo $normalized['text'];
 ```
 
-## Streaming
+## Fonctionnalités avancées
+
+### Streaming en temps réel
 
 ```php
-foreach (AIChat::stream('openai', [ ['role' => 'user', 'content' => 'Explique la gravité en 3 points'] ]) as $chunk) {
-	echo $chunk; // flush vers client SSE
+foreach (AiBridge::stream('openai', [ 
+    ['role' => 'user', 'content' => 'Explique la gravité en 3 points'] 
+]) as $chunk) {
+    echo $chunk; // flush vers client SSE
 }
 ```
 
-## Embeddings
+### Embeddings pour la recherche sémantique
 
 ```php
-$vec = AIChat::embeddings('openai', 'Texte à vectoriser');
+$result = AiBridge::embeddings('openai', [
+    'Premier texte à vectoriser',
+    'Deuxième texte à analyser'
+]);
+$vectors = $result['embeddings'];
 ```
 
-## Image
+### Génération d'images
 
 ```php
-$imageB64 = AIChat::image('openai', 'Un chat astronaute');
+$result = AiBridge::image('openai', 'Un chat astronaute dans l\'espace', [
+    'size' => '1024x1024',
+    'model' => 'dall-e-3',
+    'quality' => 'hd'
+]);
+$imageUrl = $result['images'][0]['url'] ?? null;
 ```
 
-## Audio TTS
+### Audio Text-to-Speech
 
 ```php
-$mp3 = AIChat::tts('openai', 'Bonjour le monde');
-file_put_contents('sortie.mp3', base64_decode($mp3['audio'] ?? ''));
+$result = AiBridge::tts('openai', 'Bonjour le monde', [
+    'voice' => 'alloy',
+    'model' => 'tts-1-hd'
+]);
+file_put_contents('sortie.mp3', base64_decode($result['audio']));
 ```
 
-## Audio STT
+### Audio Speech-to-Text
 
 ```php
-$text = AIChat::stt('openai', storage_path('app/audio.wav'));
+$result = AiBridge::stt('openai', storage_path('app/audio.wav'), [
+    'model' => 'whisper-1'
+]);
+$transcription = $result['text'];
 ```
 
-## Structured Output (JSON Mode simple)
+## Structured Output (JSON Mode)
+
+### Avec validation de schéma
 
 ```php
-$res = AIChat::chat('openai', [
-	['role' => 'user', 'content' => 'Donne un JSON avec name et age']
+$res = AiBridge::chat('openai', [
+    ['role' => 'user', 'content' => 'Donne-moi les infos d\'une personne en JSON']
 ], [
-	'response_format' => 'json',
-	'json_schema' => [
-		'name' => 'person_schema',
-		'schema' => [
-			'type' => 'object',
-			'properties' => [
-				'name' => ['type' => 'string'],
-				'age' => ['type' => 'number']
-			],
-			'required' => ['name','age']
-		]
-	]
+    'response_format' => 'json',
+    'json_schema' => [
+        'name' => 'person_schema',
+        'schema' => [
+            'type' => 'object',
+            'properties' => [
+                'name' => ['type' => 'string'],
+                'age' => ['type' => 'number'],
+                'city' => ['type' => 'string']
+            ],
+            'required' => ['name', 'age']
+        ]
+    ]
 ]);
+
+// Vérifier la validation
+if ($res['schema_validation']['valid'] ?? false) {
+    $person = json_decode($res['choices'][0]['message']['content'], true);
+    echo "Nom: " . $person['name'];
+} else {
+    $errors = $res['schema_validation']['errors'] ?? [];
+    echo "Erreurs de validation: " . implode(', ', $errors);
+}
 ```
 
-Pass `response_format => 'json'` and optionally `json_schema` (OpenAI json schema). The response will include `schema_validation` with validation status.
-
-Example:
+### Mode JSON simple (Ollama)
 
 ```php
-$resp = AIChat::chat('openai', $messages, [
-	'response_format' => 'json',
-	'json_schema' => [
-		'name' => 'user_profile',
-		'schema' => [
-			'type' => 'object',
-			'required' => ['name','age'],
-			'properties' => [
-				'name' => ['type' => 'string'],
-				'age' => ['type' => 'number']
-			]
-		]
-	]
+$res = AiBridge::chat('ollama', [
+    ['role' => 'user', 'content' => 'Liste 3 pays africains en JSON']
+], [
+    'response_format' => 'json',
+    'model' => 'llama3.1'
 ]);
-// $resp['schema_validation'] = ['valid' => true] or includes errors
 ```
 
-## Native OpenAI Function Calling
+## Function Calling
 
-Provide a `tools` array (each with name, description, parameters/schema) and optional `tool_choice` => 'auto'. Returned assistant message will contain normalized `tool_calls` array for easier post-processing.
+### OpenAI Native Function Calling
 
 ```php
 $tools = [
-	[
-		'name' => 'getWeather',
-		'description' => 'Get weather for a city',
-		'parameters' => [
-			'type' => 'object',
-			'properties' => ['city' => ['type' => 'string']],
-			'required' => ['city']
-		]
-	]
+    [
+        'name' => 'getWeather',
+        'description' => 'Obtenir la météo d\'une ville',
+        'parameters' => [
+            'type' => 'object',
+            'properties' => [
+                'city' => ['type' => 'string', 'description' => 'Nom de la ville']
+            ],
+            'required' => ['city']
+        ]
+    ]
 ];
 
-$resp = AIChat::chat('openai', $messages, [ 'tools' => $tools, 'tool_choice' => 'auto' ]);
+$resp = AiBridge::chat('openai', [
+    ['role' => 'user', 'content' => 'Quelle est la météo à Paris ?']
+], [
+    'tools' => $tools,
+    'tool_choice' => 'auto'
+]);
+
 if (!empty($resp['tool_calls'])) {
-	// execute
+    foreach ($resp['tool_calls'] as $call) {
+        $functionName = $call['name'];
+        $arguments = $call['arguments'];
+        // Exécuter la fonction...
+    }
 }
 ```
 
-## Outils (Tool Calling générique)
+### Système d'outils génériques
 
-Enregistrez un outil :
+Créer un outil personnalisé :
 
 ```php
-use AiBridge\Tools\SystemInfoTool;
+use AiBridge\Contracts\ToolContract;
 
-AIChat::registerTool(new SystemInfoTool());
+class WeatherTool implements ToolContract
+{
+    public function name(): string { 
+        return 'get_weather'; 
+    }
+    
+    public function description(): string { 
+        return 'Obtenir la météo actuelle d\'une ville'; 
+    }
+    
+    public function schema(): array { 
+        return [
+            'type' => 'object',
+            'properties' => [
+                'city' => ['type' => 'string']
+            ],
+            'required' => ['city']
+        ]; 
+    }
+    
+    public function execute(array $arguments): string { 
+        $city = $arguments['city'] ?? 'Paris';
+        // Appel API météo...
+        return json_encode(['city' => $city, 'temp' => '22°C']);
+    }
+}
 ```
 
-Lancer une conversation avec outils (itérations automatiques jusqu'à réponse finale) :
+Enregistrer et utiliser l'outil :
 
 ```php
-$result = app(\AiBridge\AiBridgeManager::class)->chatWithTools('ollama', [
-	['role' => 'user', 'content' => "Donne la version PHP via l'outil puis explique en une phrase."]
+$manager = app('AiBridge');
+$manager->registerTool(new WeatherTool());
+
+$result = $manager->chatWithTools('ollama', [
+    ['role' => 'user', 'content' => 'Quelle est la météo à Lyon ?']
+], [
+    'model' => 'llama3.1',
+    'max_tool_iterations' => 3
 ]);
 
-// $result['tool_calls'] contient les exécutions, $result['final'] la dernière réponse brute provider
+echo $result['final']['message']['content'];
+// Historique des appels d'outils dans $result['tool_calls']
 ```
 
-### Timeouts & Retry
+## Providers supportés
 
-Configurer via .env :
+| Provider | Chat | Stream | Embeddings | Images | Audio (TTS) | Audio (STT) | Tools |
+|----------|------|--------|------------|--------|-------------|-------------|-------|
+| **OpenAI** | ✅ | ✅ | ✅ | ✅ (DALL-E) | ✅ | ✅ | ✅ Natif |
+| **Ollama** | ✅ | ✅ | ✅ | ✅ (SD) | ❌ | ❌ | ✅ Générique |
+| **Gemini** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ Générique |
+| **Claude** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Générique |
+| **Grok** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Générique |
+| **Custom OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Natif |
+
+## Configuration avancée
+
+### Timeouts et retry
 
 ```env
+# Timeout des requêtes HTTP (secondes)
 LLM_HTTP_TIMEOUT=30
+
+# Nombre de tentatives en cas d'échec
 LLM_HTTP_RETRY=2
+
+# Délai entre les tentatives (ms)
 LLM_HTTP_RETRY_SLEEP=200
 ```
 
-Ces valeurs s’appliquent aux requêtes HTTP (retry + timeout) lors de l’initialisation du manager.
+### Sécurité des fichiers
 
-## Ollama Exemple
+```env
+# Taille max des fichiers (bytes)
+LLM_MAX_FILE_BYTES=2097152
+
+# Types MIME autorisés pour les fichiers
+# (configuré dans config/aibridge.php)
+```
+
+### Provider personnalisé (Azure OpenAI)
+
+```env
+OPENAI_CUSTOM_API_KEY=your-azure-key
+OPENAI_CUSTOM_BASE_URL=https://your-resource.openai.azure.com
+OPENAI_CUSTOM_AUTH_HEADER=api-key
+OPENAI_CUSTOM_AUTH_PREFIX=
+```
+
+## Exemples pratiques
+
+### Assistant conversationnel avec historique
 
 ```php
-$stream = AIChat::stream('ollama', [ ['role' => 'user', 'content' => 'Décris la mer'] ], ['model' => 'llama2']);
-foreach ($stream as $part) {
-	echo $part;
+class ChatbotService
+{
+    private array $conversation = [];
+    
+    public function __construct(private AiBridgeManager $ai) {}
+    
+    public function chat(string $userMessage): string
+    {
+        $this->conversation[] = ['role' => 'user', 'content' => $userMessage];
+        
+        $response = $this->ai->chat('openai', $this->conversation, [
+            'model' => 'gpt-4',
+            'temperature' => 0.7
+        ]);
+        
+        $assistantMessage = $response['choices'][0]['message']['content'];
+        $this->conversation[] = ['role' => 'assistant', 'content' => $assistantMessage];
+        
+        return $assistantMessage;
+    }
 }
 ```
 
-## Roadmap
+### Recherche sémantique avec embeddings
 
-- Tools / function calling abstrait
-- Validation stricte schema JSON
-- Multi-tenancy provider config override
-- Caching embeddings
-- Tests intégrés
+```php
+class SemanticSearch
+{
+    public function __construct(private AiBridgeManager $ai) {}
+    
+    public function search(string $query, array $documents): array
+    {
+        // Vectoriser la requête et les documents
+        $inputs = [$query, ...$documents];
+        $result = $this->ai->embeddings('openai', $inputs);
+        
+        $queryVector = $result['embeddings'][0];
+        $docVectors = array_slice($result['embeddings'], 1);
+        
+        // Calculer la similarité cosinus
+        $similarities = [];
+        foreach ($docVectors as $i => $docVector) {
+            $similarities[$i] = $this->cosineSimilarity($queryVector, $docVector);
+        }
+        
+        // Trier par pertinence
+        arsort($similarities);
+        
+        return array_map(fn($i) => [
+            'document' => $documents[$i],
+            'score' => $similarities[$i]
+        ], array_keys($similarities));
+    }
+    
+    private function cosineSimilarity(array $a, array $b): float
+    {
+        $dotProduct = array_sum(array_map(fn($x, $y) => $x * $y, $a, $b));
+        $normA = sqrt(array_sum(array_map(fn($x) => $x * $x, $a)));
+        $normB = sqrt(array_sum(array_map(fn($x) => $x * $x, $b)));
+        
+        return $dotProduct / ($normA * $normB);
+    }
+}
+```
+
+### Streaming pour interface temps réel
+
+```php
+Route::get('/chat-stream', function (Request $request) {
+    $message = $request->input('message');
+    
+    return response()->stream(function () use ($message) {
+        $manager = app('AiBridge');
+        
+        foreach ($manager->stream('openai', [
+            ['role' => 'user', 'content' => $message]
+        ]) as $chunk) {
+            echo "data: " . json_encode(['chunk' => $chunk]) . "\n\n";
+            ob_flush();
+            flush();
+        }
+        
+        echo "data: [DONE]\n\n";
+    }, 200, [
+        'Content-Type' => 'text/plain',
+        'Cache-Control' => 'no-cache',
+        'X-Accel-Buffering' => 'no'
+    ]);
+});
+```
+
+## Tests
+
+Exécuter la suite de tests :
+
+```bash
+composer test
+```
+
+Ou via PHPUnit directement :
+
+```bash
+./vendor/bin/phpunit
+```
+
+## Développement
+
+### Contribution
+
+1. Fork du projet
+2. Créer une branche feature (`git checkout -b feature/amazing-feature`)
+3. Commit des changements (`git commit -m 'Add amazing feature'`)
+4. Push vers la branche (`git push origin feature/amazing-feature`)
+5. Ouvrir une Pull Request
+
+### Roadmap
+
+- [ ] Support natif Claude Function Calling
+- [ ] Cache automatique des embeddings
+- [ ] Providers supplémentaires (Cohere, Hugging Face)
+- [ ] Interface web d'administration
+- [ ] Métriques et monitoring intégrés
+- [ ] Support multimodal avancé (vision, audio)
+
+## Licence
+
+Ce package est open source sous licence [MIT](LICENSE).
 
 ## Avertissement
 
-Ce package n'est pas affilié aux fournisseurs cités. Respectez leurs conditions d'utilisation.
+Ce package n'est pas officiellement affilié à OpenAI, Anthropic, Google, ou autres fournisseurs mentionnés. Respectez leurs conditions d'utilisation respectives.
+
+## Support
+
+- 📖 [Documentation complète](https://github.com/omgbwa-yasse/AiBridge/wiki)
+- 🐛 [Signaler un bug](https://github.com/omgbwa-yasse/AiBridge/issues)
+- 💬 [Discussions](https://github.com/omgbwa-yasse/AiBridge/discussions)
+- ⭐ N'oubliez pas de donner une étoile si ce projet vous aide !
