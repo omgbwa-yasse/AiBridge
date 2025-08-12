@@ -1,5 +1,5 @@
 {
-    "name": "laravel/aibridge",
+    "name": "omgbwa-yasse/aibridge",
     "description": "Laravel / Ai Bridge - Package Laravel unifié pour interagir avec OpenAI, Ollama, Onn, Gemini, Grok, Claude.",
     "type": "library",
     "license": "MIT",
