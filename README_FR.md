@@ -1,18 +1,18 @@
 # AiBridge
 
-Unified Laravel package for interacting with multiple LLM APIs (OpenAI, Ollama, Gemini, Claude, Grok, etc.) with complete support for:
+Package Laravel unifié pour interagir avec plusieurs LLM / APIs (OpenAI, Ollama, Gemini, Claude, Grok, etc.) avec support complet pour :
 
-- 💬 **Conversational chat** with history
-- 🌊 **Real-time streaming**
-- 🔍 **Embeddings** for semantic search
-- 🎨 **Image generation** (DALL-E, Stable Diffusion via Ollama)
-- 🔊 **Audio** (Text-to-Speech and Speech-to-Text)
-- 📋 **Structured output** (JSON mode with schema validation)
-- 🛠️ **Function calling** native and generic
-- 🎯 **Extensible system tools**
-- 🔧 **Laravel Facade** `AiBridge` for simplified access
+- 💬 **Chat conversationnel** avec historique
+- 🌊 **Streaming** en temps réel
+- 🔍 **Embeddings** pour la recherche sémantique
+- 🎨 **Génération d'images** (DALL-E, Stable Diffusion via Ollama)
+- 🔊 **Audio** (Text-to-Speech et Speech-to-Text)
+- 📋 **Structured output** (mode JSON avec validation de schéma)
+- 🛠️ **Function calling** natif et générique
+- 🎯 **Tools système** extensibles
+- 🔧 **Facade Laravel** `AiBridge` pour un accès simplifié
 
-> ✅ **Status**: Stable - Consolidated API after fixes (v1.0)
+> ✅ **Statut**: Stable - API consolidée après corrections (v1.0)
 
 ## Installation
 
@@ -22,52 +22,52 @@ composer require laravel/aibridge
 
 ### Configuration
 
-Publish the configuration file:
+Publier le fichier de configuration :
 
 ```bash
 php artisan vendor:publish --provider="AiBridge\AiBridgeServiceProvider" --tag=config
 ```
 
-### Environment Variables
+### Variables d'environnement
 
-Configure your API keys in `.env`:
+Configurer vos clés API dans `.env` :
 
 ```env
 # OpenAI
 OPENAI_API_KEY=sk-...
 
-# Other providers
+# Autres providers
 OLLAMA_ENDPOINT=http://localhost:11434
 GEMINI_API_KEY=...
 CLAUDE_API_KEY=...
 GROK_API_KEY=...
 
-# Custom providers (Azure OpenAI, etc.)
+# Providers personnalisés (Azure OpenAI, etc.)
 OPENAI_CUSTOM_API_KEY=...
 OPENAI_CUSTOM_BASE_URL=https://your-azure-openai.openai.azure.com
 OPENAI_CUSTOM_AUTH_HEADER=api-key
 OPENAI_CUSTOM_AUTH_PREFIX=
 
-# HTTP Configuration
+# Configuration HTTP
 LLM_HTTP_TIMEOUT=30
 LLM_HTTP_RETRY=2
 LLM_HTTP_RETRY_SLEEP=200
 ```
 
-## Basic Usage
+## Utilisation de base
 
-### Access via Laravel Container
+### Accès via le conteneur Laravel
 
-Get the manager directly from the container:
+Récupérer le manager directement depuis le conteneur :
 
 ```php
-$manager = app('AiBridge'); // AiBridge\AiBridgeManager instance
+$manager = app('AiBridge'); // instance de AiBridge\AiBridgeManager
 $resp = $manager->chat('openai', [
-    ['role' => 'user', 'content' => 'Hello']
+    ['role' => 'user', 'content' => 'Bonjour']
 ]);
 ```
 
-Or via dependency injection:
+Ou via l'injection de dépendances :
 
 ```php
 use AiBridge\AiBridgeManager;
@@ -84,20 +84,20 @@ class MyService
 }
 ```
 
-### Basic Chat with Facade
+### Chat basique avec facade
 
 ```php
 use AiBridge\Facades\AiBridge;
 
 $res = AiBridge::chat('openai', [
-    ['role' => 'user', 'content' => 'Hello, who are you?']
+    ['role' => 'user', 'content' => 'Bonjour, qui es-tu ?']
 ]);
 $text = $res['choices'][0]['message']['content'] ?? '';
 ```
 
-### Laravel Alias (Optional)
+### Alias Laravel (facultatif)
 
-The `AiBridge` facade is available via auto-discovery. For a custom alias, add to `config/app.php`:
+La façade `AiBridge` est disponible via auto-discovery. Pour un alias personnalisé, ajoutez à `config/app.php` :
 
 ```php
 'aliases' => [
@@ -106,44 +106,44 @@ The `AiBridge` facade is available via auto-discovery. For a custom alias, add t
 ],
 ```
 
-### Normalized Response
+### Réponse normalisée
 
 ```php
 use AiBridge\Support\ChatNormalizer;
 
 $raw = AiBridge::chat('openai', [ 
-    ['role' => 'user', 'content' => 'Hello'] 
+    ['role' => 'user', 'content' => 'Bonjour'] 
 ]);
 $normalized = ChatNormalizer::normalize($raw);
 echo $normalized['text'];
 ```
 
-## Advanced Features
+## Fonctionnalités avancées
 
-### Real-time Streaming
+### Streaming en temps réel
 
 ```php
 foreach (AiBridge::stream('openai', [ 
-    ['role' => 'user', 'content' => 'Explain gravity in 3 points'] 
+    ['role' => 'user', 'content' => 'Explique la gravité en 3 points'] 
 ]) as $chunk) {
-    echo $chunk; // flush to SSE client
+    echo $chunk; // flush vers client SSE
 }
 ```
 
-### Embeddings for Semantic Search
+### Embeddings pour la recherche sémantique
 
 ```php
 $result = AiBridge::embeddings('openai', [
-    'First text to vectorize',
-    'Second text to analyze'
+    'Premier texte à vectoriser',
+    'Deuxième texte à analyser'
 ]);
 $vectors = $result['embeddings'];
 ```
 
-### Image Generation
+### Génération d'images
 
 ```php
-$result = AiBridge::image('openai', 'An astronaut cat in space', [
+$result = AiBridge::image('openai', 'Un chat astronaute dans l\'espace', [
     'size' => '1024x1024',
     'model' => 'dall-e-3',
     'quality' => 'hd'
@@ -154,11 +154,11 @@ $imageUrl = $result['images'][0]['url'] ?? null;
 ### Audio Text-to-Speech
 
 ```php
-$result = AiBridge::tts('openai', 'Hello world', [
+$result = AiBridge::tts('openai', 'Bonjour le monde', [
     'voice' => 'alloy',
     'model' => 'tts-1-hd'
 ]);
-file_put_contents('output.mp3', base64_decode($result['audio']));
+file_put_contents('sortie.mp3', base64_decode($result['audio']));
 ```
 
 ### Audio Speech-to-Text
@@ -172,11 +172,11 @@ $transcription = $result['text'];
 
 ## Structured Output (JSON Mode)
 
-### With Schema Validation
+### Avec validation de schéma
 
 ```php
 $res = AiBridge::chat('openai', [
-    ['role' => 'user', 'content' => 'Give me person info in JSON format']
+    ['role' => 'user', 'content' => 'Donne-moi les infos d\'une personne en JSON']
 ], [
     'response_format' => 'json',
     'json_schema' => [
@@ -193,21 +193,21 @@ $res = AiBridge::chat('openai', [
     ]
 ]);
 
-// Check validation
+// Vérifier la validation
 if ($res['schema_validation']['valid'] ?? false) {
     $person = json_decode($res['choices'][0]['message']['content'], true);
-    echo "Name: " . $person['name'];
+    echo "Nom: " . $person['name'];
 } else {
     $errors = $res['schema_validation']['errors'] ?? [];
-    echo "Validation errors: " . implode(', ', $errors);
+    echo "Erreurs de validation: " . implode(', ', $errors);
 }
 ```
 
-### Simple JSON Mode (Ollama)
+### Mode JSON simple (Ollama)
 
 ```php
 $res = AiBridge::chat('ollama', [
-    ['role' => 'user', 'content' => 'List 3 African countries in JSON']
+    ['role' => 'user', 'content' => 'Liste 3 pays africains en JSON']
 ], [
     'response_format' => 'json',
     'model' => 'llama3.1'
@@ -222,11 +222,11 @@ $res = AiBridge::chat('ollama', [
 $tools = [
     [
         'name' => 'getWeather',
-        'description' => 'Get weather for a city',
+        'description' => 'Obtenir la météo d\'une ville',
         'parameters' => [
             'type' => 'object',
             'properties' => [
-                'city' => ['type' => 'string', 'description' => 'City name']
+                'city' => ['type' => 'string', 'description' => 'Nom de la ville']
             ],
             'required' => ['city']
         ]
@@ -234,7 +234,7 @@ $tools = [
 ];
 
 $resp = AiBridge::chat('openai', [
-    ['role' => 'user', 'content' => 'What\'s the weather in Paris?']
+    ['role' => 'user', 'content' => 'Quelle est la météo à Paris ?']
 ], [
     'tools' => $tools,
     'tool_choice' => 'auto'
@@ -244,14 +244,14 @@ if (!empty($resp['tool_calls'])) {
     foreach ($resp['tool_calls'] as $call) {
         $functionName = $call['name'];
         $arguments = $call['arguments'];
-        // Execute function...
+        // Exécuter la fonction...
     }
 }
 ```
 
-### Generic Tools System
+### Système d'outils génériques
 
-Create a custom tool:
+Créer un outil personnalisé :
 
 ```php
 use AiBridge\Contracts\ToolContract;
@@ -263,7 +263,7 @@ class WeatherTool implements ToolContract
     }
     
     public function description(): string { 
-        return 'Get current weather for a city'; 
+        return 'Obtenir la météo actuelle d\'une ville'; 
     }
     
     public function schema(): array { 
@@ -278,66 +278,66 @@ class WeatherTool implements ToolContract
     
     public function execute(array $arguments): string { 
         $city = $arguments['city'] ?? 'Paris';
-        // Weather API call...
+        // Appel API météo...
         return json_encode(['city' => $city, 'temp' => '22°C']);
     }
 }
 ```
 
-Register and use the tool:
+Enregistrer et utiliser l'outil :
 
 ```php
 $manager = app('AiBridge');
 $manager->registerTool(new WeatherTool());
 
 $result = $manager->chatWithTools('ollama', [
-    ['role' => 'user', 'content' => 'What\'s the weather in Lyon?']
+    ['role' => 'user', 'content' => 'Quelle est la météo à Lyon ?']
 ], [
     'model' => 'llama3.1',
     'max_tool_iterations' => 3
 ]);
 
 echo $result['final']['message']['content'];
-// Tool call history in $result['tool_calls']
+// Historique des appels d'outils dans $result['tool_calls']
 ```
 
-## Supported Providers
+## Providers supportés
 
 | Provider | Chat | Stream | Embeddings | Images | Audio (TTS) | Audio (STT) | Tools |
 |----------|------|--------|------------|--------|-------------|-------------|-------|
-| **OpenAI** | ✅ | ✅ | ✅ | ✅ (DALL-E) | ✅ | ✅ | ✅ Native |
-| **Ollama** | ✅ | ✅ | ✅ | ✅ (SD) | ❌ | ❌ | ✅ Generic |
-| **Gemini** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ Generic |
-| **Claude** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Generic |
-| **Grok** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Generic |
-| **Custom OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Native |
+| **OpenAI** | ✅ | ✅ | ✅ | ✅ (DALL-E) | ✅ | ✅ | ✅ Natif |
+| **Ollama** | ✅ | ✅ | ✅ | ✅ (SD) | ❌ | ❌ | ✅ Générique |
+| **Gemini** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ Générique |
+| **Claude** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Générique |
+| **Grok** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Générique |
+| **Custom OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Natif |
 
-## Advanced Configuration
+## Configuration avancée
 
-### Timeouts and Retry
+### Timeouts et retry
 
 ```env
-# HTTP request timeout (seconds)
+# Timeout des requêtes HTTP (secondes)
 LLM_HTTP_TIMEOUT=30
 
-# Number of retry attempts on failure
+# Nombre de tentatives en cas d'échec
 LLM_HTTP_RETRY=2
 
-# Delay between retries (ms)
+# Délai entre les tentatives (ms)
 LLM_HTTP_RETRY_SLEEP=200
 ```
 
-### File Security
+### Sécurité des fichiers
 
 ```env
-# Maximum file size (bytes)
+# Taille max des fichiers (bytes)
 LLM_MAX_FILE_BYTES=2097152
 
-# Allowed MIME types for files
-# (configured in config/aibridge.php)
+# Types MIME autorisés pour les fichiers
+# (configuré dans config/aibridge.php)
 ```
 
-### Custom Provider (Azure OpenAI)
+### Provider personnalisé (Azure OpenAI)
 
 ```env
 OPENAI_CUSTOM_API_KEY=your-azure-key
@@ -346,9 +346,9 @@ OPENAI_CUSTOM_AUTH_HEADER=api-key
 OPENAI_CUSTOM_AUTH_PREFIX=
 ```
 
-## Practical Examples
+## Exemples pratiques
 
-### Conversational Assistant with History
+### Assistant conversationnel avec historique
 
 ```php
 class ChatbotService
@@ -374,7 +374,7 @@ class ChatbotService
 }
 ```
 
-### Semantic Search with Embeddings
+### Recherche sémantique avec embeddings
 
 ```php
 class SemanticSearch
@@ -383,20 +383,20 @@ class SemanticSearch
     
     public function search(string $query, array $documents): array
     {
-        // Vectorize query and documents
+        // Vectoriser la requête et les documents
         $inputs = [$query, ...$documents];
         $result = $this->ai->embeddings('openai', $inputs);
         
         $queryVector = $result['embeddings'][0];
         $docVectors = array_slice($result['embeddings'], 1);
         
-        // Calculate cosine similarity
+        // Calculer la similarité cosinus
         $similarities = [];
         foreach ($docVectors as $i => $docVector) {
             $similarities[$i] = $this->cosineSimilarity($queryVector, $docVector);
         }
         
-        // Sort by relevance
+        // Trier par pertinence
         arsort($similarities);
         
         return array_map(fn($i) => [
@@ -416,7 +416,7 @@ class SemanticSearch
 }
 ```
 
-### Streaming for Real-time Interface
+### Streaming pour interface temps réel
 
 ```php
 Route::get('/chat-stream', function (Request $request) {
@@ -442,50 +442,50 @@ Route::get('/chat-stream', function (Request $request) {
 });
 ```
 
-## Testing
+## Tests
 
-Run the test suite:
+Exécuter la suite de tests :
 
 ```bash
 composer test
 ```
 
-Or via PHPUnit directly:
+Ou via PHPUnit directement :
 
 ```bash
 ./vendor/bin/phpunit
 ```
 
-## Development
+## Développement
 
-### Contributing
+### Contribution
 
-1. Fork the project
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Fork du projet
+2. Créer une branche feature (`git checkout -b feature/amazing-feature`)
+3. Commit des changements (`git commit -m 'Add amazing feature'`)
+4. Push vers la branche (`git push origin feature/amazing-feature`)
+5. Ouvrir une Pull Request
 
 ### Roadmap
 
-- [ ] Native Claude Function Calling support
-- [ ] Automatic embeddings caching
-- [ ] Additional providers (Cohere, Hugging Face)
-- [ ] Web administration interface
-- [ ] Integrated metrics and monitoring
-- [ ] Advanced multimodal support (vision, audio)
+- [ ] Support natif Claude Function Calling
+- [ ] Cache automatique des embeddings
+- [ ] Providers supplémentaires (Cohere, Hugging Face)
+- [ ] Interface web d'administration
+- [ ] Métriques et monitoring intégrés
+- [ ] Support multimodal avancé (vision, audio)
 
-## License
+## Licence
 
-This package is open source under the [MIT](LICENSE) license.
+Ce package est open source sous licence [MIT](LICENSE).
 
-## Disclaimer
+## Avertissement
 
-This package is not officially affiliated with OpenAI, Anthropic, Google, or other mentioned providers. Please respect their respective terms of service.
+Ce package n'est pas officiellement affilié à OpenAI, Anthropic, Google, ou autres fournisseurs mentionnés. Respectez leurs conditions d'utilisation respectives.
 
 ## Support
 
-- 📖 [Complete Documentation](https://github.com/omgbwa-yasse/AiBridge/wiki)
-- 🐛 [Report a Bug](https://github.com/omgbwa-yasse/AiBridge/issues)
+- 📖 [Documentation complète](https://github.com/omgbwa-yasse/AiBridge/wiki)
+- 🐛 [Signaler un bug](https://github.com/omgbwa-yasse/AiBridge/issues)
 - 💬 [Discussions](https://github.com/omgbwa-yasse/AiBridge/discussions)
-- ⭐ Don't forget to star the project if it helps you!
+- ⭐ N'oubliez pas de donner une étoile si ce projet vous aide !
