@@ -17,7 +17,7 @@ Unified Laravel package for interacting with multiple LLM APIs (OpenAI, Ollama, 
 ## Installation
 
 ```bash
-composer require laravel/aibridge
+composer require omgbwa-yasse/aibridge
 ```
 
 ### Configuration
