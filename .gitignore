@@ -31,3 +31,6 @@ Thumbs.db
 /.php-cs-fixer.cache
 /.phpactor.json
 /.history
+
+# Project-specific ignores
+/Others/

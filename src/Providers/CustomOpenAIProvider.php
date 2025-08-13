@@ -6,6 +6,7 @@ use AiBridge\Contracts\ChatProviderContract;
 use AiBridge\Contracts\EmbeddingsProviderContract;
 use AiBridge\Contracts\ImageProviderContract;
 use AiBridge\Contracts\AudioProviderContract;
+use AiBridge\Contracts\ModelsProviderContract;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -15,7 +16,7 @@ use Illuminate\Http\Client\Factory as HttpFactory;
  * Permet d'utiliser une API compatible OpenAI (proxy, Azure, self-host, etc.).
  * Supporte chat, embeddings, images, tts/stt (si endpoints fournis) + outils natifs comme OpenAIProvider.
  */
-class CustomOpenAIProvider implements ChatProviderContract, EmbeddingsProviderContract, ImageProviderContract, AudioProviderContract
+class CustomOpenAIProvider implements ChatProviderContract, EmbeddingsProviderContract, ImageProviderContract, AudioProviderContract, ModelsProviderContract
 {
     protected string $apiKey;
     protected string $baseUrl;
@@ -65,9 +66,35 @@ class CustomOpenAIProvider implements ChatProviderContract, EmbeddingsProviderCo
     // Chat
     public function chat(array $messages, array $options = []): array
     {
-        $payload = [ 'model' => $options['model'] ?? ($options['deployment'] ?? 'gpt-like'), 'messages' => $messages ];
-        if (isset($options['temperature'])) { $payload['temperature'] = $options['temperature']; }
-        // Structured output
+        $payload = $this->buildChatPayload($messages, $options);
+        $res = $this->client()->post($this->endpoint('chat'), $payload)->json();
+        $this->normalizeToolCallsOnResponse($res);
+        return $res ?? [];
+    }
+
+    protected function buildChatPayload(array $messages, array $options): array
+    {
+        $payload = [
+            'model' => $options['model'] ?? ($options['deployment'] ?? 'gpt-like'),
+            'messages' => $messages,
+        ];
+        $this->applySamplingOptions($payload, $options);
+        $this->applyResponseFormatOptions($payload, $options);
+        $this->applyToolsOptions($payload, $options);
+        return $payload;
+    }
+
+    protected function applySamplingOptions(array &$payload, array $options): void
+    {
+        foreach (['temperature','top_p','max_tokens','frequency_penalty','presence_penalty','stop','seed','user'] as $k) {
+            if (array_key_exists($k, $options)) {
+                $payload[$k] = $options[$k];
+            }
+        }
+    }
+
+    protected function applyResponseFormatOptions(array &$payload, array $options): void
+    {
         if (!empty($options['response_format']) && $options['response_format'] === 'json') {
             $schema = $options['json_schema']['schema'] ?? [ 'type' => 'object' ];
             $payload['response_format'] = [
@@ -75,31 +102,36 @@ class CustomOpenAIProvider implements ChatProviderContract, EmbeddingsProviderCo
                 'json_schema' => $options['json_schema'] ?? [ 'name' => 'auto_schema', 'schema' => $schema ]
             ];
         }
-        // Native tools
-        if (!empty($options['tools']) && is_array($options['tools'])) {
-            $payload['tools'] = array_map(function ($tool) {
-                return [
-                    'type' => 'function',
-                    'function' => [
-                        'name' => $tool['name'],
-                        'description' => $tool['description'] ?? '',
-                        'parameters' => $tool['parameters'] ?? ($tool['schema'] ?? ['type'=>'object','properties'=>[]]),
-                    ]
-                ];
-            }, $options['tools']);
-            if (!empty($options['tool_choice'])) { $payload['tool_choice'] = $options['tool_choice']; }
+    }
+
+    protected function applyToolsOptions(array &$payload, array $options): void
+    {
+        if (empty($options['tools']) || !is_array($options['tools'])) { return; }
+        $payload['tools'] = array_map(function ($tool) {
+            return [
+                'type' => 'function',
+                'function' => [
+                    'name' => $tool['name'],
+                    'description' => $tool['description'] ?? '',
+                    'parameters' => $tool['parameters'] ?? ($tool['schema'] ?? ['type'=>'object','properties'=>[]]),
+                ]
+            ];
+        }, $options['tools']);
+        if (!empty($options['tool_choice'])) {
+            $payload['tool_choice'] = $options['tool_choice'];
         }
-        $res = $this->client()->post($this->endpoint('chat'), $payload)->json();
-        if (isset($res['choices'][0]['message']['tool_calls'])) {
-            $res['tool_calls'] = array_map(function ($tc) {
-                return [
-                    'id' => $tc['id'] ?? null,
-                    'name' => $tc['function']['name'] ?? null,
-                    'arguments' => json_decode($tc['function']['arguments'] ?? '{}', true) ?: [],
-                ];
-            }, $res['choices'][0]['message']['tool_calls']);
-        }
-        return $res ?? [];
+    }
+
+    protected function normalizeToolCallsOnResponse(?array &$res): void
+    {
+        if (!is_array($res) || !isset($res['choices'][0]['message']['tool_calls'])) { return; }
+        $res['tool_calls'] = array_map(function ($tc) {
+            return [
+                'id' => $tc['id'] ?? null,
+                'name' => $tc['function']['name'] ?? null,
+                'arguments' => json_decode($tc['function']['arguments'] ?? '{}', true) ?: [],
+            ];
+        }, $res['choices'][0]['message']['tool_calls']);
     }
 
     public function stream(array $messages, array $options = []): \Generator
@@ -109,6 +141,22 @@ class CustomOpenAIProvider implements ChatProviderContract, EmbeddingsProviderCo
         if (!method_exists($response, 'toPsrResponse')) { return; }
         $body = $response->toPsrResponse()->getBody();
         yield from $this->readSse($body);
+    }
+
+    /**
+     * Yield structured events similar to OpenAIProvider::streamEvents
+     * Each event: ['type' => 'delta'|'end', 'data' => string|null]
+     */
+    public function streamEvents(array $messages, array $options = []): \Generator
+    {
+        $payload = [ 'model' => $options['model'] ?? 'gpt-like', 'messages' => $messages, 'stream' => true ];
+        $response = $this->client()->withOptions(['stream' => true])->post($this->endpoint('chat'), $payload);
+        if (!method_exists($response, 'toPsrResponse')) { return; }
+        $body = $response->toPsrResponse()->getBody();
+        foreach ($this->readSse($body) as $delta) {
+            yield ['type' => 'delta', 'data' => $delta];
+        }
+        yield ['type' => 'end', 'data' => null];
     }
 
     protected function readSse($body): \Generator
@@ -129,6 +177,33 @@ class CustomOpenAIProvider implements ChatProviderContract, EmbeddingsProviderCo
     }
 
     public function supportsStreaming(): bool { return true; }
+
+    // Models
+    public function listModels(): array
+    {
+        $url = rtrim($this->baseUrl, '/') . $this->modelsPath();
+        return $this->client()->get($url)->json() ?? [];
+    }
+
+    public function getModel(string $id): array
+    {
+        $url = rtrim($this->baseUrl, '/') . $this->modelsPath() . '/' . urlencode($id);
+        return $this->client()->get($url)->json() ?? [];
+    }
+
+    protected function modelsPath(): string
+    {
+        // If a custom path is provided, prefer it
+        if (!empty($this->paths['models'])) {
+            return $this->paths['models'];
+        }
+        // If baseUrl already contains '/v1', use '/models', else use '/v1/models'
+        $b = rtrim($this->baseUrl, '/');
+        if (preg_match('~/v\d+(?:$|/)~', $b)) {
+            return '/models';
+        }
+        return '/v1/models';
+    }
 
     // Embeddings
     public function embeddings(array $inputs, array $options = []): array

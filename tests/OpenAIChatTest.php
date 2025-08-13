@@ -62,9 +62,9 @@ class OpenAIChatTest extends TestCase
             ], 200)
         ]);
         $provider = new OpenAIProvider('test-key');
-        $resp = $provider->chat([
+    $resp = $provider->chat([
             ['role' => 'user', 'content' => 'Give JSON']
-        ], [ 'response_format' => 'json', 'json_schema' => $schema ]);
+    ], [ 'api' => 'chat', 'response_format' => 'json', 'json_schema' => $schema ]);
     $this->assertTrue($resp['schema_validation']['valid'] ?? false);
     }
 
@@ -85,9 +85,9 @@ class OpenAIChatTest extends TestCase
             ], 200)
         ]);
         $provider = new OpenAIProvider('test-key');
-        $resp = $provider->chat([
+    $resp = $provider->chat([
             ['role' => 'user', 'content' => 'weather please']
-        ], [
+    ], [ 'api' => 'chat',
             'tools' => [[
                 'name' => 'getWeather',
                 'description' => 'Get weather for a city',

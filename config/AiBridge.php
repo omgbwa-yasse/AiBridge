@@ -21,7 +21,9 @@ return [
     ],
     'openai_custom' => [
         'api_key' => env('OPENAI_CUSTOM_API_KEY'),
-        'base_url' => env('OPENAI_CUSTOM_BASE_URL'), // ex: https://my-proxy.example.com
+    // For Ollama OpenAI-compat, set to http://localhost:11434/v1 and use api_key="ollama"
+    // e.g. OPENAI_CUSTOM_BASE_URL=http://localhost:11434/v1
+    'base_url' => env('OPENAI_CUSTOM_BASE_URL'), // ex: https://my-proxy.example.com or http://localhost:11434/v1
         'paths' => [
             'chat' => env('OPENAI_CUSTOM_PATH_CHAT', '/v1/chat/completions'),
             'embeddings' => env('OPENAI_CUSTOM_PATH_EMBED', '/v1/embeddings'),

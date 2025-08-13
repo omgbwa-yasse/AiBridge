@@ -67,6 +67,12 @@ $resp = $manager->chat('openai', [
 ]);
 ```
 
+Register a custom provider at runtime (advanced):
+
+```php
+$manager->registerProvider('myprov', new MyProvider());
+```
+
 Or via dependency injection:
 
 ```php
@@ -130,6 +136,17 @@ foreach (AiBridge::stream('openai', [
 }
 ```
 
+Event-based streaming from the manager (delta/end events):
+
+```php
+foreach (app('AiBridge')->streamEvents('openai', [
+    ['role' => 'user', 'content' => 'Stream me a short answer']
+]) as $evt) {
+    if ($evt['type'] === 'delta') echo $evt['data'];
+    if ($evt['type'] === 'end') break;
+}
+```
+
 ### Embeddings for Semantic Search
 
 ```php
@@ -138,6 +155,16 @@ $result = AiBridge::embeddings('openai', [
     'Second text to analyze'
 ]);
 $vectors = $result['embeddings'];
+```
+
+Normalize embeddings across providers:
+
+```php
+use AiBridge\Support\EmbeddingsNormalizer;
+
+$raw = AiBridge::embeddings('openai', ['hello world']);
+$norm = EmbeddingsNormalizer::normalize($raw);
+$vectors = $norm['vectors'];
 ```
 
 ### Image Generation
@@ -151,6 +178,32 @@ $result = AiBridge::image('openai', 'An astronaut cat in space', [
 $imageUrl = $result['images'][0]['url'] ?? null;
 ```
 
+Normalize images from any provider:
+
+```php
+use AiBridge\Support\ImageNormalizer;
+
+$raw = AiBridge::image('openai_custom', 'A watercolor elephant');
+$images = ImageNormalizer::normalize($raw);
+foreach ($images as $img) {
+    if ($img['type'] === 'url') { echo $img['url']; }
+    if ($img['type'] === 'b64') { file_put_contents('out.png', base64_decode($img['data'])); }
+}
+```
+
+Facade convenience for normalizers:
+
+```php
+// Images
+$imgs = AiBridge::normalizeImages($rawImage);
+// Audio TTS
+$tts = AiBridge::normalizeTTSAudio($rawTTS);
+// Audio STT
+$stt = AiBridge::normalizeSTTAudio($rawSTT);
+// Embeddings
+$emb = AiBridge::normalizeEmbeddings($rawEmb);
+```
+
 ### Audio Text-to-Speech
 
 ```php
@@ -159,6 +212,16 @@ $result = AiBridge::tts('openai', 'Hello world', [
     'model' => 'tts-1-hd'
 ]);
 file_put_contents('output.mp3', base64_decode($result['audio']));
+```
+
+Normalize audio responses:
+
+```php
+use AiBridge\Support\AudioNormalizer;
+
+$raw = AiBridge::tts('openai', 'Hello world');
+$audio = AudioNormalizer::normalizeTTS($raw);
+file_put_contents('tts.mp3', base64_decode($audio['b64']));
 ```
 
 ### Audio Speech-to-Text
@@ -344,6 +407,115 @@ OPENAI_CUSTOM_API_KEY=your-azure-key
 OPENAI_CUSTOM_BASE_URL=https://your-resource.openai.azure.com
 OPENAI_CUSTOM_AUTH_HEADER=api-key
 OPENAI_CUSTOM_AUTH_PREFIX=
+```
+
+### Ollama via OpenAI-compatible API
+
+Ollama exposes an experimental, OpenAI-compatible API at <http://localhost:11434/v1>. You can use AiBridge's "Custom OpenAI" provider to call Ollama with OpenAI-shaped requests (chat/completions, streaming, embeddings, vision as content parts).
+
+Environment example:
+
+```env
+# Ollama OpenAI compatibility
+OPENAI_CUSTOM_API_KEY=ollama              # required by client but ignored by Ollama
+OPENAI_CUSTOM_BASE_URL=http://localhost:11434/v1
+# The default paths already match Ollama's OpenAI-compat endpoints:
+#   /v1/chat/completions, /v1/embeddings, /v1/images/generations, etc.
+# Keep defaults unless you run a proxy.
+```
+
+Usage example (PHP):
+
+```php
+use AiBridge\AiBridgeManager;
+
+$ai = new AiBridgeManager([
+    'openai_custom' => [
+        'api_key' => 'ollama',
+        'base_url' => 'http://localhost:11434/v1',
+        'paths' => [
+            'chat' => '/v1/chat/completions',
+            'embeddings' => '/v1/embeddings',
+        ],
+    ],
+    'options' => [ 'default_timeout' => 30 ],
+]);
+
+// Chat
+$resp = $ai->chat('openai_custom', [
+    ['role' => 'user', 'content' => 'Say this is a test'],
+], [ 'model' => 'llama3.2' ]);
+echo $resp['choices'][0]['message']['content'] ?? '';
+
+// Streaming
+foreach ($ai->stream('openai_custom', [
+    ['role' => 'user', 'content' => 'Explain gravity in one paragraph.'],
+], [ 'model' => 'llama3.2' ]) as $chunk) {
+    echo $chunk;
+}
+
+// Embeddings
+$emb = $ai->embeddings('openai_custom', [
+    'why is the sky blue?',
+    'why is the grass green?',
+], [ 'model' => 'all-minilm' ]);
+$vectors = $emb['embeddings'];
+```
+
+Notes:
+
+- Ollama supports base64 image content parts in chat messages (OpenAI-style). Provide an array of content parts with a data URL if needed.
+- Not all OpenAI fields are supported (e.g., tool_choice, logprobs). See Ollama docs for the current matrix.
+
+#### Vision (image content parts)
+
+```php
+$imageB64 = base64_encode(file_get_contents('example.png'));
+$messages = [
+    [
+        'role' => 'user',
+        'content' => [
+            [ 'type' => 'text', 'text' => "What's in this image?" ],
+            [ 'type' => 'image_url', 'image_url' => 'data:image/png;base64,' . $imageB64 ],
+        ],
+    ],
+];
+$resp = $ai->chat('openai_custom', $messages, [ 'model' => 'llava' ]);
+echo $resp['choices'][0]['message']['content'] ?? '';
+```
+
+#### Troubleshooting Ollama (OpenAI-compat)
+
+- Ensure Ollama is started with the OpenAI-compatible API: it should expose <http://localhost:11434/v1>
+- Use an arbitrary api key (e.g., "ollama"): some clients require a token header even if the server ignores it.
+- If you see 404 on /v1/models, set paths in config to match your proxy or version.
+
+### Models (list/retrieve) with OpenAI-compatible endpoints
+
+```php
+// List models from an OpenAI-compatible base URL (e.g., Ollama /v1)
+$models = $ai->models('openai_custom');
+foreach (($models['data'] ?? []) as $m) {
+        echo $m['id'] . PHP_EOL;
+}
+
+// Retrieve a single model
+$model = $ai->model('openai_custom', 'llama3.2');
+print_r($model);
+```
+
+### Streaming events (OpenAI)
+
+```php
+use AiBridge\Providers\OpenAIProvider;
+
+$prov = new OpenAIProvider(env('OPENAI_API_KEY'));
+foreach ($prov->streamEvents([
+    ['role' => 'user', 'content' => 'Stream me a short answer.']
+], [ 'model' => 'gpt-4o-mini' ]) as $evt) {
+    if ($evt['type'] === 'delta') { echo $evt['data']; }
+    if ($evt['type'] === 'end') { echo "\n[done]\n"; }
+}
 ```
 
 ## Practical Examples

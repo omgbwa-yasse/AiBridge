@@ -13,6 +13,7 @@ use AiBridge\Contracts\ChatProviderContract;
 use AiBridge\Contracts\EmbeddingsProviderContract;
 use AiBridge\Contracts\ImageProviderContract;
 use AiBridge\Contracts\AudioProviderContract;
+use AiBridge\Contracts\ModelsProviderContract;
 use AiBridge\Support\Exceptions\ProviderException;
 use AiBridge\Support\ToolRegistry;
 use AiBridge\Contracts\ToolContract;
@@ -82,6 +83,15 @@ class AiBridgeManager
 		return $p instanceof ChatProviderContract ? $p : null;
 	}
 
+	/**
+	 * Register or override a provider at runtime (useful for custom integrations and tests).
+	 */
+	public function registerProvider(string $name, $provider): self
+	{
+		$this->providers[$name] = $provider;
+		return $this;
+	}
+
 	public function chat(string $provider, array $messages, array $options = []): array
 	{
 		$p = $this->providers[$provider] ?? null;
@@ -100,6 +110,30 @@ class AiBridgeManager
 		return $p->stream($messages, $options);
 	}
 
+	/**
+	 * Stream structured events if provider supports it; otherwise wrap plain stream chunks as delta events.
+	 * Each event: ['type' => 'delta'|'end', 'data' => string|null]
+	 */
+	public function streamEvents(string $provider, array $messages, array $options = []): \Generator
+	{
+		$p = $this->providers[$provider] ?? null;
+		if (!$p || !$p instanceof ChatProviderContract || !$p->supportsStreaming()) {
+			throw ProviderException::unsupported($provider, 'streaming');
+		}
+		// If provider exposes streamEvents, use it directly
+		if (method_exists($p, 'streamEvents')) {
+			/** @var \Generator $gen */
+			$gen = \call_user_func([$p, 'streamEvents'], $messages, $options);
+			foreach ($gen as $evt) { yield $evt; }
+			return;
+		}
+		// Fallback: wrap plain chunks as delta and emit a final end event
+		foreach ($p->stream($messages, $options) as $chunk) {
+			yield ['type' => 'delta', 'data' => $chunk];
+		}
+		yield ['type' => 'end', 'data' => null];
+	}
+
 	public function embeddings(string $provider, array $inputs, array $options = []): array
 	{
 		$p = $this->providers[$provider] ?? null;
@@ -107,6 +141,24 @@ class AiBridgeManager
 			throw ProviderException::unsupported($provider, 'embeddings');
 		}
 		return $p->embeddings($inputs, $options);
+	}
+
+	public function models(string $provider): array
+	{
+		$p = $this->providers[$provider] ?? null;
+		if (!$p || !$p instanceof ModelsProviderContract) {
+			throw ProviderException::unsupported($provider, 'models');
+		}
+		return $p->listModels();
+	}
+
+	public function model(string $provider, string $id): array
+	{
+		$p = $this->providers[$provider] ?? null;
+		if (!$p || !$p instanceof ModelsProviderContract) {
+			throw ProviderException::unsupported($provider, 'model');
+		}
+		return $p->getModel($id);
 	}
 
 	public function image(string $provider, string $prompt, array $options = []): array
@@ -162,142 +214,7 @@ class AiBridgeManager
 	 */
 	public function chatWithTools(string $provider, array $messages, array $options = []): array
 	{
-		if (empty($this->tools())) {
-			return [ 'final' => $this->chat($provider, $messages, $options), 'tool_calls' => [] ];
-		}
-		$messages = $this->injectToolInstructionIfMissing($messages);
-		$state = [
-			'tool_calls' => [],
-			'messages' => $messages,
-			'iterations' => 0,
-			'max' => $options['max_tool_iterations'] ?? 5,
-			'provider' => $provider,
-			'options' => $options,
-			'final' => null,
-			'done' => false,
-		];
-		while (!$state['done'] && $state['iterations'] < $state['max']) {
-			$this->toolLoopIteration($state);
-		}
-		if (!$state['final']) {
-			return [ 'error' => 'tool_iteration_limit_reached', 'tool_calls' => $state['tool_calls'] ];
-		}
-		return [ 'final' => $state['final'], 'tool_calls' => $state['tool_calls'] ];
-	}
-
-	protected function injectToolInstructionIfMissing(array $messages): array
-	{
-		$instruction = $this->buildToolInstruction($this->tools());
-		foreach ($messages as $m) {
-			if (($m['role'] ?? null) === 'system' && str_contains($m['content'] ?? '', 'Outils:')) {
-				return $messages;
-			}
-		}
-		array_unshift($messages, [ 'role' => 'system', 'content' => $instruction ]);
-		return $messages;
-	}
-
-	protected function toolLoopIteration(array &$state): void
-	{
-		$state['iterations']++;
-		$response = $this->chat($state['provider'], $state['messages'], $state['options']);
-		$assistant = $this->extractAssistantContent($response);
-		if ($assistant === null) {
-			$state['final'] = $response; $state['done'] = true; return;
-		}
-		$toolCalls = $this->parseToolCalls($assistant);
-		if (empty($toolCalls)) {
-			$state['final'] = $response; $state['done'] = true; return;
-		}
-		$executed = $this->executeToolCalls($toolCalls);
-		foreach ($executed as $call) {
-			$state['tool_calls'][] = $call;
-			$state['messages'][] = [ 'role' => 'tool', 'name' => $call['name'], 'content' => $call['result'] ];
-		}
-		$state['messages'][] = [ 'role' => 'user', 'content' => 'Si d\'autres outils sont nécessaires répond uniquement en JSON tool_calls; sinon réponds normalement.' ];
-	}
-
-	protected function executeToolCalls(array $toolCalls): array
-	{
-		$out = [];
-		foreach ($toolCalls as $call) {
-			$name = $call['name'] ?? null;
-			$args = $call['arguments'] ?? [];
-			if (!$name) { continue; }
-			$tool = $this->tool($name);
-			if (!$tool) { continue; }
-			try {
-				$result = $tool->execute(is_array($args) ? $args : []);
-			} catch (\Throwable $e) {
-				$result = 'Tool execution error: '.$e->getMessage();
-			}
-			$out[] = [ 'name' => $name, 'arguments' => $args, 'result' => $result ];
-		}
-		return $out;
-	}
-
-	protected function buildToolInstruction(array $tools): string
-	{
-		$specs = [];
-		foreach ($tools as $tool) {
-			$specs[] = [
-				'name' => $tool->name(),
-				'description' => $tool->description(),
-				'schema' => $tool->schema(),
-			];
-		}
-		return "Tu disposes des outils suivants. Pour demander l'exécution d'un outil, répond STRICTEMENT avec un JSON de la forme {\"tool_calls\":[{\"name\":\"toolName\",\"arguments\":{...}}]} sans texte additionnel. Outils: " . json_encode($specs, JSON_UNESCAPED_UNICODE);
-	}
-
-	protected function ensureToolSystemMessage(array $messages, string $instruction): array
-	{
-		foreach ($messages as $m) {
-			if (($m['role'] ?? null) === 'system' && str_contains(($m['content'] ?? ''), 'Outils:')) {
-				return $messages; // already injected
-			}
-		}
-		array_unshift($messages, [ 'role' => 'system', 'content' => $instruction ]);
-		return $messages;
-	}
-
-	protected function extractAssistantContent(array $response): ?string
-	{
-		// Attempt OpenAI-like shape first
-		if (isset($response['choices'][0]['message']['content'])) {
-			return $response['choices'][0]['message']['content'];
-		}
-		// Ollama typical shape: { message: { role: 'assistant', content: '...' } }
-		if (isset($response['message']['content'])) {
-			return $response['message']['content'];
-		}
-		return null;
-	}
-
-	/**
-	 * Try to parse tool_calls JSON out of assistant content.
-	 */
-	protected function parseToolCalls(string $content): array
-	{
-		$result = [];
-		$candidate = trim($content);
-		// Extract fenced code block if present
-		if (preg_match('/```(?:json)?\s*([\s\S]*?)```/i', $candidate, $m)) {
-			$candidate = trim($m[1]);
-		}
-		$decoded = json_decode($candidate, true);
-		if (!is_array($decoded)) {
-			// Fallback: extract first balanced JSON object (simple heuristic)
-			if (preg_match('/\{[^{}]*\}/s', $candidate, $mm)) {
-				$decoded = json_decode($mm[0], true);
-			}
-		}
-		if (is_array($decoded)) {
-			if (isset($decoded['tool_calls']) && is_array($decoded['tool_calls'])) {
-				$result = $decoded['tool_calls'];
-			} elseif (isset($decoded[0]) && is_array($decoded[0]) && array_key_exists('name', $decoded[0])) {
-				$result = $decoded;
-			}
-		}
-		return is_array($result) ? $result : [];
+		$runner = new \AiBridge\Support\ToolChatRunner($this);
+		return $runner->run($provider, $messages, $options);
 	}
 }

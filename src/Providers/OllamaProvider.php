@@ -61,9 +61,11 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
             'messages' => $this->normalizeMessages($messages),
             'stream' => false,
         ];
-        if (!empty($options['temperature'])) {
-            $payload['options']['temperature'] = $options['temperature'];
-        }
+    if (!empty($options['temperature'])) { $payload['options']['temperature'] = $options['temperature']; }
+    if (!empty($options['top_p'])) { $payload['options']['top_p'] = $options['top_p']; }
+    if (!empty($options['top_k'])) { $payload['options']['top_k'] = $options['top_k']; }
+    if (!empty($options['repeat_penalty'])) { $payload['options']['repeat_penalty'] = $options['repeat_penalty']; }
+    if (!empty($options['stop'])) { $payload['options']['stop'] = (array)$options['stop']; }
 
         // Structured JSON output request (Ollama supports format => json)
         if (($options['response_format'] ?? null) === 'json') {
@@ -104,21 +106,19 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
 
     public function stream(array $messages, array $options = []): \Generator
     {
-        $payload = [
-            'model' => $options['model'] ?? 'llama2',
-            'messages' => $this->normalizeMessages($messages),
-            'stream' => true,
-        ];
-        if (!empty($options['temperature'])) {
-            $payload['options']['temperature'] = $options['temperature'];
-        }
+    $payload = [ 'model' => $options['model'] ?? 'llama2', 'messages' => $this->normalizeMessages($messages), 'stream' => true ];
+    if (!empty($options['temperature'])) { $payload['options']['temperature'] = $options['temperature']; }
+    if (!empty($options['top_p'])) { $payload['options']['top_p'] = $options['top_p']; }
+    if (!empty($options['top_k'])) { $payload['options']['top_k'] = $options['top_k']; }
+    if (!empty($options['repeat_penalty'])) { $payload['options']['repeat_penalty'] = $options['repeat_penalty']; }
+    if (!empty($options['stop'])) { $payload['options']['stop'] = (array)$options['stop']; }
         if (($options['response_format'] ?? null) === 'json') {
             $payload['format'] = 'json';
         }
         if (!empty($options['files'])) {
             $payload['files'] = $this->prepareFiles($options['files']);
         }
-        if (!empty($options['image_files'])) {
+    if (!empty($options['image_files'])) {
             $images = $this->prepareImageFiles($options['image_files']);
             if (!empty($images)) {
                 $lastIndex = count($payload['messages']) - 1;
@@ -138,7 +138,7 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
                 $lines = preg_split('/\r?\n/', $chunk);
                 foreach ($lines as $line) {
                     $line = trim($line);
-                    if ($line === '') continue;
+                    if ($line === '') { continue; }
                     $decoded = json_decode($line, true);
                     if (isset($decoded['message']['content'])) {
                         yield $decoded['message']['content'];
