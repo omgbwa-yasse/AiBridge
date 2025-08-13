@@ -4,6 +4,11 @@ return [
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
     ],
+    'ollama_turbo' => [
+        'api_key' => env('OLLAMA_TURBO_API_KEY'),
+        // Optional override, defaults to https://ollama.com
+        'endpoint' => env('OLLAMA_TURBO_ENDPOINT', 'https://ollama.com'),
+    ],
     'ollama' => [
         'endpoint' => env('OLLAMA_ENDPOINT', 'http://localhost:11434'),
     ],
@@ -37,6 +42,13 @@ return [
         'extra_headers' => [
             // 'api-version' => '2024-02-15-preview'
         ],
+    ],
+    'openrouter' => [
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+        // Optional headers to surface your app in OpenRouter listings
+        'referer' => env('OPENROUTER_REFERER'), // ex: https://your-app.example.com
+        'title' => env('OPENROUTER_TITLE'),     // ex: Your App Name
     ],
     'options' => [
         'default_timeout' => env('LLM_HTTP_TIMEOUT', 30),

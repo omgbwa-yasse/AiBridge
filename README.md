@@ -41,6 +41,16 @@ OLLAMA_ENDPOINT=http://localhost:11434
 GEMINI_API_KEY=...
 CLAUDE_API_KEY=...
 GROK_API_KEY=...
+# OpenRouter
+OPENROUTER_API_KEY=...
+# Optional app discovery headers
+# OPENROUTER_REFERER=https://your-app.example.com
+# OPENROUTER_TITLE=Your App Name
+
+# Ollama Turbo (SaaS)
+OLLAMA_TURBO_API_KEY=...
+# Optional override (defaults to https://ollama.com)
+# OLLAMA_TURBO_ENDPOINT=https://ollama.com
 
 # Custom providers (Azure OpenAI, etc.)
 OPENAI_CUSTOM_API_KEY=...
@@ -370,6 +380,7 @@ echo $result['final']['message']['content'];
 |----------|------|--------|------------|--------|-------------|-------------|-------|
 | **OpenAI** | ✅ | ✅ | ✅ | ✅ (DALL-E) | ✅ | ✅ | ✅ Native |
 | **Ollama** | ✅ | ✅ | ✅ | ✅ (SD) | ❌ | ❌ | ✅ Generic |
+| **Ollama Turbo** | ✅ | ✅ | ✅ | ✅ (SD) | ❌ | ❌ | ✅ Generic |
 | **Gemini** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ Generic |
 | **Claude** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Generic |
 | **Grok** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Generic |

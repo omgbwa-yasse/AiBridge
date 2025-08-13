@@ -4,6 +4,7 @@ namespace AiBridge;
 
 use AiBridge\Providers\OpenAIProvider;
 use AiBridge\Providers\OllamaProvider;
+use AiBridge\Providers\OllamaTurboProvider;
 use AiBridge\Providers\OnnProvider;
 use AiBridge\Providers\GeminiProvider;
 use AiBridge\Providers\GrokProvider;
@@ -35,6 +36,10 @@ class AiBridgeManager
 		if (!empty($config['ollama']['endpoint'])) {
 			$this->providers['ollama'] = new OllamaProvider($config['ollama']['endpoint']);
 		}
+		if (!empty($config['ollama_turbo']['api_key'])) {
+			$endpoint = $config['ollama_turbo']['endpoint'] ?? 'https://ollama.com';
+			$this->providers['ollama_turbo'] = new OllamaTurboProvider($config['ollama_turbo']['api_key'], $endpoint);
+		}
 		if (!empty($config['onn']['api_key'])) {
 			$this->providers['onn'] = new OnnProvider($config['onn']['api_key']);
 		}
@@ -56,6 +61,26 @@ class AiBridgeManager
 				$c['auth_header'] ?? 'Authorization',
 				$c['auth_prefix'] ?? 'Bearer ',
 				$c['extra_headers'] ?? []
+			);
+		}
+
+		// OpenRouter (OpenAI-compatible schema at /api/v1)
+		if (!empty($config['openrouter']['api_key'])) {
+			$base = $config['openrouter']['base_url'] ?? 'https://openrouter.ai/api/v1';
+			$headers = [];
+			if (!empty($config['openrouter']['referer'])) { $headers['HTTP-Referer'] = $config['openrouter']['referer']; }
+			if (!empty($config['openrouter']['title'])) { $headers['X-Title'] = $config['openrouter']['title']; }
+			$this->providers['openrouter'] = new CustomOpenAIProvider(
+				$config['openrouter']['api_key'],
+				$base,
+				[
+					'chat' => '/chat/completions',
+					'embeddings' => '/embeddings',
+					'image' => '/images/generations',
+					'tts' => '/audio/speech',
+					'stt' => '/audio/transcriptions',
+				],
+				'Authorization', 'Bearer ', $headers
 			);
 		}
 	}
