@@ -93,11 +93,15 @@ class AiBridgeManager
 		$retry = $this->options['retry']['times'] ?? 0;
 		$sleep = $this->options['retry']['sleep'] ?? 0;
 		$timeout = $this->options['default_timeout'] ?? null;
+		$verify = $this->options['verify'] ?? null; // true|false|string (path)
 		if ($retry > 0) {
 			$pending = $pending->retry($retry, $sleep);
 		}
 		if ($timeout) {
 			$pending = $pending->timeout($timeout);
+		}
+		if ($verify !== null) {
+			$pending = $pending->withOptions(['verify' => $verify]);
 		}
 		return $pending;
 	}

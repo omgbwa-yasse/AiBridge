@@ -18,12 +18,41 @@ class ClaudeProvider implements ChatProviderContract
 
     protected function client()
     {
-        $pending = Http::withHeaders([
+        // Prefer Laravel Http facade when available; otherwise use standalone Factory.
+        $headers = [
             'x-api-key' => $this->apiKey,
             'anthropic-version' => '2023-06-01',
             'content-type' => 'application/json',
-        ]);
-        return $this->decorate($pending);
+        ];
+        try {
+            if (class_exists(\Illuminate\Support\Facades\Facade::class)
+                && \Illuminate\Support\Facades\Facade::getFacadeApplication()
+                && class_exists(\Illuminate\Support\Facades\Http::class)) {
+                $pending = Http::withHeaders($headers)->acceptJson();
+                $verifyEnv = getenv('LLM_HTTP_VERIFY');
+                if (is_string($verifyEnv) && in_array(strtolower($verifyEnv), ['0','false','off'], true)) {
+                    $pending = $pending->withOptions(['verify' => false]);
+                }
+                return $this->decorate($pending);
+            }
+        } catch (\Throwable $e) {
+            // fall through to factory
+        }
+
+        // Fallback: raw HTTP client factory usable outside Laravel
+        $factoryClass = \Illuminate\Http\Client\Factory::class;
+        if (class_exists($factoryClass)) {
+            static $factory; if (!$factory) { $factory = new \Illuminate\Http\Client\Factory(); }
+            $pending = $factory->withHeaders($headers)->acceptJson();
+            $verifyEnv = getenv('LLM_HTTP_VERIFY');
+            if (is_string($verifyEnv) && in_array(strtolower($verifyEnv), ['0','false','off'], true)) {
+                $pending = $pending->withOptions(['verify' => false]);
+            }
+            return $this->decorate($pending);
+        }
+
+        // Last resort (should not happen given package requirements)
+        return $this->decorate(Http::withHeaders($headers)->acceptJson());
     }
 
     protected function decorate($pending)
