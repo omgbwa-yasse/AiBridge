@@ -41,8 +41,11 @@ OLLAMA_ENDPOINT=http://localhost:11434
 GEMINI_API_KEY=...
 CLAUDE_API_KEY=...
 GROK_API_KEY=...
+ONN_API_KEY=...
 # OpenRouter
 OPENROUTER_API_KEY=...
+# Optional override (defaults to https://openrouter.ai/api/v1)
+# OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 # Optional app discovery headers
 # OPENROUTER_REFERER=https://your-app.example.com
 # OPENROUTER_TITLE=Your App Name
@@ -60,7 +63,7 @@ OPENAI_CUSTOM_AUTH_PREFIX=
 
 # HTTP Configuration
 LLM_HTTP_TIMEOUT=30
-LLM_HTTP_RETRY=2
+LLM_HTTP_RETRY=1
 LLM_HTTP_RETRY_SLEEP=200
 ```
 
@@ -384,6 +387,8 @@ echo $result['final']['message']['content'];
 | **Gemini** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ Generic |
 | **Claude** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Generic |
 | **Grok** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Generic |
+| **OpenRouter** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Native (OpenAI-compatible) |
+| **ONN** | ✅ | ✅ (simulated) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Custom OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Native |
 
 ## Advanced Configuration
@@ -501,6 +506,59 @@ echo $resp['choices'][0]['message']['content'] ?? '';
 - Use an arbitrary api key (e.g., "ollama"): some clients require a token header even if the server ignores it.
 - If you see 404 on /v1/models, set paths in config to match your proxy or version.
 
+### OpenRouter (OpenAI-compatible)
+
+OpenRouter exposes an OpenAI-compatible API at https://openrouter.ai/api/v1 and is pre-wired in AiBridge via a CustomOpenAIProvider.
+
+Environment example:
+
+```env
+OPENROUTER_API_KEY=your-key
+# Optional
+# OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+# OPENROUTER_REFERER=https://your-app.example.com
+# OPENROUTER_TITLE=Your App Name
+```
+
+Usage examples (PHP):
+
+```php
+use AiBridge\Facades\AiBridge;
+
+// Chat
+$res = AiBridge::chat('openrouter', [
+    ['role' => 'user', 'content' => 'Give me a one-liner joke']
+], [ 'model' => 'openai/gpt-4o-mini' ]);
+echo $res['choices'][0]['message']['content'] ?? '';
+
+// Streaming
+foreach (AiBridge::stream('openrouter', [
+    ['role' => 'user', 'content' => 'Stream a haiku about the sea']
+], [ 'model' => 'meta-llama/llama-3.1-8b-instruct' ]) as $chunk) {
+    echo $chunk;
+}
+
+// Embeddings
+$emb = AiBridge::embeddings('openrouter', [
+    'hello world',
+    'bonjour le monde'
+], [ 'model' => 'text-embedding-3-small' ]);
+$vectors = $emb['embeddings'];
+
+// Images (if the routed model supports it)
+$img = AiBridge::image('openrouter', 'A watercolor fox in the forest', [
+    'model' => 'openai/dall-e-3'
+]);
+
+// Audio (TTS/STT) if available through OpenRouter for your chosen model
+$tts = AiBridge::tts('openrouter', 'Hello from OpenRouter', [ 'model' => 'openai/tts-1', 'voice' => 'alloy' ]);
+```
+
+Notes:
+
+- Model IDs and capabilities depend on OpenRouter routing. Choose models accordingly.
+- The Referer/Title headers are optional but recommended to surface your app in OpenRouter’s ecosystem.
+
 ### Models (list/retrieve) with OpenAI-compatible endpoints
 
 ```php
@@ -515,6 +573,8 @@ $model = $ai->model('openai_custom', 'llama3.2');
 print_r($model);
 ```
 
+Also works with built-in providers that speak the OpenAI schema, e.g. `openrouter` and `openai`.
+
 ### Streaming events (OpenAI)
 
 ```php
@@ -526,6 +586,33 @@ foreach ($prov->streamEvents([
 ], [ 'model' => 'gpt-4o-mini' ]) as $evt) {
     if ($evt['type'] === 'delta') { echo $evt['data']; }
     if ($evt['type'] === 'end') { echo "\n[done]\n"; }
+}
+```
+
+## ONN Provider
+
+Basic chat support with optional simulated streaming.
+
+Environment:
+
+```env
+ONN_API_KEY=your-onn-key
+```
+
+Usage:
+
+```php
+use AiBridge\Facades\AiBridge;
+
+$res = AiBridge::chat('onn', [
+    ['role' => 'user', 'content' => 'Say hello']
+]);
+echo $res['response'] ?? '';
+
+foreach (AiBridge::stream('onn', [
+    ['role' => 'user', 'content' => 'Stream a short sentence']
+]) as $chunk) {
+    echo $chunk;
 }
 ```
 
