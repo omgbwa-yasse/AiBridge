@@ -6,6 +6,7 @@ class Message
 {
     public string $role;
     public string $content;
+    /** @var array<int, mixed> */
     public array $attachments = [];
 
     public function __construct(string $role, string $content, array $attachments = [])

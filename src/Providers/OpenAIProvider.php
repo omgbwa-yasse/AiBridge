@@ -10,6 +10,7 @@ use AiBridge\Contracts\ImageProviderContract;
 use AiBridge\Contracts\AudioProviderContract;
 use AiBridge\Support\JsonSchemaValidator;
 use Psr\Http\Message\StreamInterface;
+use AiBridge\Support\DocumentAttachmentMapper;
 
 class OpenAIProvider implements ChatProviderContract, EmbeddingsProviderContract, ImageProviderContract, AudioProviderContract, ModelsProviderContract
 {
@@ -24,6 +25,8 @@ class OpenAIProvider implements ChatProviderContract, EmbeddingsProviderContract
     protected string $speechToTextEndpoint = 'https://api.openai.com/v1/audio/transcriptions';
     protected string $speechTranslationsEndpoint = 'https://api.openai.com/v1/audio/translations';
     protected string $textToSpeechEndpoint = 'https://api.openai.com/v1/audio/speech';
+    protected string $filesEndpoint = 'https://api.openai.com/v1/files';
+    protected string $vectorStoresEndpoint = 'https://api.openai.com/v1/vector_stores';
 
     public function __construct(string $apiKey, string $chatEndpoint = 'https://api.openai.com/v1/chat/completions')
     {
@@ -66,6 +69,8 @@ class OpenAIProvider implements ChatProviderContract, EmbeddingsProviderContract
         // Opt-in path to Responses API
     if (($options['api'] ?? null) !== 'chat') {
             $payload = $this->buildResponsesPayload($messages, $options);
+            // If documents are provided and file_search requested, attach resources
+            $payload = $this->maybeAttachFileSearch($payload, $options);
             $pending = $this->withOrgProjectHeaders($this->client(), $options);
             $res = $pending->post($this->responsesEndpoint, $payload);
             $data = $res->json() ?? [];
@@ -139,6 +144,17 @@ class OpenAIProvider implements ChatProviderContract, EmbeddingsProviderContract
     /** Build a minimal Responses payload from chat-like messages */
     protected function buildResponsesPayload(array $messages, array $options): array
     {
+        // Expand inline texts from attachments into message content
+        foreach ($messages as $i => $m) {
+            $atts = $m['attachments'] ?? [];
+            if (!empty($atts)) {
+                $inline = DocumentAttachmentMapper::extractInlineTexts($atts);
+                if (!empty($inline)) {
+                    $messages[$i]['content'] = rtrim((string)($m['content'] ?? '')) . "\n\n" . implode("\n\n", $inline);
+                }
+                unset($messages[$i]['attachments']);
+            }
+        }
         $model = $options['model'] ?? 'gpt-4o-mini';
         $instructions = [];
         $parts = [];
@@ -225,6 +241,7 @@ class OpenAIProvider implements ChatProviderContract, EmbeddingsProviderContract
     if (($options['api'] ?? null) !== 'chat') {
             $payload = $this->buildResponsesPayload($messages, $options);
             $payload['stream'] = true;
+            $payload = $this->maybeAttachFileSearch($payload, $options);
             $pending = $this->withOrgProjectHeaders($this->client(), $options);
             $response = $pending->withOptions(['stream' => true])->post($this->responsesEndpoint, $payload);
             if (!method_exists($response, 'toPsrResponse')) { return; }
@@ -346,6 +363,46 @@ class OpenAIProvider implements ChatProviderContract, EmbeddingsProviderContract
     public function supportsStreaming(): bool
     {
         return true;
+    }
+
+    /**
+     * If options request built-in file_search and provide vector_store_id or files, attach resources payload.
+     * Non-destructive: returns payload unchanged if nothing to do.
+     */
+    protected function maybeAttachFileSearch(array $payload, array $options): array
+    {
+        $tools = $options['tools'] ?? [];
+        $wantsFileSearch = false;
+        foreach ($tools as $t) {
+            if (($t['type'] ?? null) === 'file_search') { $wantsFileSearch = true; break; }
+        }
+        if (!$wantsFileSearch) { return $payload; }
+        // Attach tool as-is (already done in buildResponsesPayload), just ensure resources block exists
+        if (!empty($options['vector_store_id'])) {
+            $payload['resources']['file_search']['vector_store_ids'] = [ $options['vector_store_id'] ];
+            return $payload;
+        }
+        if (!empty($options['file_ids']) && is_array($options['file_ids'])) {
+            $payload['resources']['file_search']['file_ids'] = array_values($options['file_ids']);
+            return $payload;
+        }
+        // If local files are passed for convenience, upload them quickly to Files API and attach file_ids.
+        if (!empty($options['files']) && is_array($options['files'])) {
+            $fileIds = [];
+            foreach ($options['files'] as $path) {
+                if (!is_string($path) || !file_exists($path)) { continue; }
+                $res = $this->withOrgProjectHeaders($this->client(), $options)
+                    ->asMultipart()
+                    ->attach('file', fopen($path, 'r'), basename($path))
+                    ->post($this->filesEndpoint, [ 'purpose' => 'assistants' ])
+                    ->json();
+                if (!empty($res['id'])) { $fileIds[] = $res['id']; }
+            }
+            if (!empty($fileIds)) {
+                $payload['resources']['file_search']['file_ids'] = $fileIds;
+            }
+        }
+        return $payload;
     }
 
     // EmbeddingsProviderContract

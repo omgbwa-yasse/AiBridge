@@ -11,6 +11,7 @@ use AiBridge\Contracts\ImageProviderContract;
 use AiBridge\Contracts\AudioProviderContract;
 use AiBridge\Support\Exceptions\ProviderException;
 use AiBridge\Support\FileSecurity;
+use AiBridge\Support\DocumentAttachmentMapper;
 
 /**
  * OllamaProvider
@@ -56,6 +57,23 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
 
     public function chat(array $messages, array $options = []): array
     {
+        // Map attachments embedded in messages to Ollama-compatible options
+        $accFiles = [];
+        $accImages = [];
+        foreach ($messages as $i => $m) {
+            $atts = $m['attachments'] ?? [];
+            if (!empty($atts)) {
+                $mapped = DocumentAttachmentMapper::toOllamaOptions($atts);
+                // Inline text chunks appended to message content
+                if (!empty($mapped['inlineTexts'])) {
+                    $messages[$i]['content'] = rtrim(($m['content'] ?? '')) . "\n" . implode("\n\n", $mapped['inlineTexts']);
+                }
+                $accFiles = array_merge($accFiles, $mapped['files']);
+                $accImages = array_merge($accImages, $mapped['image_files']);
+                // Drop attachments field to avoid leaking provider-agnostic structure
+                unset($messages[$i]['attachments']);
+            }
+        }
         $payload = [
             'model' => $options['model'] ?? 'llama2',
             'messages' => $this->normalizeMessages($messages),
@@ -83,11 +101,15 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
         }
 
         // File attachments (non-image generic) + multimodal images
-        if (!empty($options['files']) && is_array($options['files'])) {
-            $payload['files'] = $this->prepareFiles($options['files']);
+        // Merge mapped files/images with any provided via options
+        $optFiles = !empty($options['files']) && is_array($options['files']) ? $this->prepareFiles($options['files']) : [];
+        $optImages = !empty($options['image_files']) && is_array($options['image_files']) ? $this->prepareImageFiles($options['image_files']) : [];
+        $files = array_merge($optFiles, $accFiles);
+        $images = array_merge($optImages, $accImages);
+        if (!empty($files)) {
+            $payload['files'] = $files;
         }
-        if (!empty($options['image_files']) && is_array($options['image_files'])) {
-            $images = $this->prepareImageFiles($options['image_files']);
+        if (!empty($images)) {
             if (!empty($images)) {
                 // Attach images to last user message or create new user message
                 $lastIndex = count($payload['messages']) - 1;
@@ -106,6 +128,21 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
 
     public function stream(array $messages, array $options = []): \Generator
     {
+        // Map attachments embedded in messages similar to chat()
+        $accFiles = [];
+        $accImages = [];
+        foreach ($messages as $i => $m) {
+            $atts = $m['attachments'] ?? [];
+            if (!empty($atts)) {
+                $mapped = DocumentAttachmentMapper::toOllamaOptions($atts);
+                if (!empty($mapped['inlineTexts'])) {
+                    $messages[$i]['content'] = rtrim(($m['content'] ?? '')) . "\n" . implode("\n\n", $mapped['inlineTexts']);
+                }
+                $accFiles = array_merge($accFiles, $mapped['files']);
+                $accImages = array_merge($accImages, $mapped['image_files']);
+                unset($messages[$i]['attachments']);
+            }
+        }
     $payload = [ 'model' => $options['model'] ?? 'llama2', 'messages' => $this->normalizeMessages($messages), 'stream' => true ];
     if (!empty($options['temperature'])) { $payload['options']['temperature'] = $options['temperature']; }
     if (!empty($options['top_p'])) { $payload['options']['top_p'] = $options['top_p']; }
@@ -115,19 +152,18 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
         if (($options['response_format'] ?? null) === 'json') {
             $payload['format'] = 'json';
         }
-        if (!empty($options['files'])) {
-            $payload['files'] = $this->prepareFiles($options['files']);
-        }
-    if (!empty($options['image_files'])) {
-            $images = $this->prepareImageFiles($options['image_files']);
-            if (!empty($images)) {
+    $optFiles = !empty($options['files']) && is_array($options['files']) ? $this->prepareFiles($options['files']) : [];
+    $optImages = !empty($options['image_files']) && is_array($options['image_files']) ? $this->prepareImageFiles($options['image_files']) : [];
+    $files = array_merge($optFiles, $accFiles);
+    $images = array_merge($optImages, $accImages);
+    if (!empty($files)) { $payload['files'] = $files; }
+    if (!empty($images)) {
                 $lastIndex = count($payload['messages']) - 1;
                 if ($lastIndex >= 0 && ($payload['messages'][$lastIndex]['role'] ?? null) === 'user') {
                     $payload['messages'][$lastIndex]['images'] = $images;
                 } else {
                     $payload['messages'][] = [ 'role' => 'user', 'content' => '', 'images' => $images ];
                 }
-            }
         }
     $response = $this->decorate($this->makePending(['stream' => true]))->post($this->chatEndpoint, $payload);
         if (method_exists($response, 'toPsrResponse')) {
