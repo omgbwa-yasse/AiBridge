@@ -24,6 +24,7 @@ class AiBridgeManager
 	protected $providers = [];
 	protected ToolRegistry $toolRegistry;
 	protected array $options = [];
+	private const BEARER_PREFIX = 'Bearer ';
 
 	public function __construct(array $config)
 	{
@@ -59,7 +60,7 @@ class AiBridgeManager
 				$c['base_url'],
 				$c['paths'] ?? [],
 				$c['auth_header'] ?? 'Authorization',
-				$c['auth_prefix'] ?? 'Bearer ',
+				$c['auth_prefix'] ?? self::BEARER_PREFIX,
 				$c['extra_headers'] ?? []
 			);
 		}
@@ -80,9 +81,134 @@ class AiBridgeManager
 					'tts' => '/audio/speech',
 					'stt' => '/audio/transcriptions',
 				],
-				'Authorization', 'Bearer ', $headers
+				'Authorization', self::BEARER_PREFIX, $headers
 			);
 		}
+	}
+
+	/**
+	 * Determine if call options include override credentials/endpoints.
+	 */
+	protected function hasOverrides(array $options): bool
+	{
+		$keys = ['api_key', 'endpoint', 'base_url', 'chat_endpoint', 'auth_header', 'auth_prefix', 'paths', 'extra_headers'];
+		foreach ($keys as $k) {
+			if (array_key_exists($k, $options)) { return true; }
+		}
+		return false;
+	}
+
+	/**
+	 * Build a provider instance from call options (when api_key/endpoint are provided).
+	 * Returns null if insufficient data for the requested provider.
+	 */
+	protected function buildProviderFromOptions(string $name, array $options)
+	{
+		$provider = null;
+		switch ($name) {
+			case 'openai':
+				$api = $options['api_key'] ?? null;
+				if ($api) {
+					$chatEp = $options['chat_endpoint'] ?? 'https://api.openai.com/v1/chat/completions';
+					$provider = new OpenAIProvider($api, $chatEp);
+				}
+				break;
+			case 'ollama':
+				$ep = $options['endpoint'] ?? 'http://localhost:11434';
+				$provider = new OllamaProvider($ep);
+				break;
+			case 'ollama_turbo':
+				$api = $options['api_key'] ?? null;
+				if ($api) {
+					$ep = $options['endpoint'] ?? 'https://ollama.com';
+					$provider = new OllamaTurboProvider($api, $ep);
+				}
+				break;
+			case 'onn':
+				$api = $options['api_key'] ?? null;
+				if ($api) {
+					$ep = $options['endpoint'] ?? 'https://api.onn.ai/v1/chat';
+					$provider = new OnnProvider($api, $ep);
+				}
+				break;
+			case 'gemini':
+				$api = $options['api_key'] ?? null;
+				if ($api) {
+					$ep = $options['endpoint'] ?? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+					$provider = new GeminiProvider($api, $ep);
+				}
+				break;
+			case 'grok':
+				$api = $options['api_key'] ?? null;
+				if ($api) {
+					$ep = $options['endpoint'] ?? 'https://api.grok.com/v1/chat';
+					$provider = new GrokProvider($api, $ep);
+				}
+				break;
+			case 'claude':
+				$api = $options['api_key'] ?? null;
+				if ($api) {
+					$ep = $options['endpoint'] ?? 'https://api.anthropic.com/v1/messages';
+					$provider = new ClaudeProvider($api, $ep);
+				}
+				break;
+			case 'openai_custom':
+				$api = $options['api_key'] ?? null;
+				$base = $options['base_url'] ?? null;
+				if ($api && $base) {
+					$paths = $options['paths'] ?? [];
+					$authHeader = $options['auth_header'] ?? 'Authorization';
+					$authPrefix = $options['auth_prefix'] ?? self::BEARER_PREFIX;
+					$extra = $options['extra_headers'] ?? [];
+					$provider = new CustomOpenAIProvider($api, $base, $paths, $authHeader, $authPrefix, $extra);
+				}
+				break;
+			case 'openrouter':
+				$api = $options['api_key'] ?? null;
+				if ($api) {
+					$base = $options['base_url'] ?? 'https://openrouter.ai/api/v1';
+					$headers = [];
+					if (!empty($options['referer'])) { $headers['HTTP-Referer'] = $options['referer']; }
+					if (!empty($options['title'])) { $headers['X-Title'] = $options['title']; }
+					$provider = new CustomOpenAIProvider(
+						$api,
+						$base,
+						[
+							'chat' => '/chat/completions',
+							'embeddings' => '/embeddings',
+							'image' => '/images/generations',
+							'tts' => '/audio/speech',
+							'stt' => '/audio/transcriptions',
+						],
+						'Authorization', self::BEARER_PREFIX, $headers
+					);
+				}
+				break;
+			default:
+				// unsupported name
+				break;
+		}
+		return $provider;
+	}
+
+	/**
+	 * Resolve the provider for this call, allowing per-call overrides (api_key/base_url/endpoint).
+	 * If a provider was not pre-configured but enough info is provided, auto-register it for future calls.
+	 */
+	protected function resolveProvider(string $name, array $options)
+	{
+		$provider = null;
+		if ($this->hasOverrides($options)) {
+			$provider = $this->buildProviderFromOptions($name, $options);
+			if ($provider) { return $provider; }
+		}
+		if (isset($this->providers[$name])) {
+			$provider = $this->providers[$name];
+		} else {
+			$provider = $this->buildProviderFromOptions($name, $options);
+			if ($provider) { $this->providers[$name] = $provider; }
+		}
+		return $provider;
 	}
 
 	/**
@@ -123,7 +249,7 @@ class AiBridgeManager
 
 	public function chat(string $provider, array $messages, array $options = []): array
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->resolveProvider($provider, $options);
 		if (!$p || !$p instanceof ChatProviderContract) {
 			throw ProviderException::unsupported($provider, 'chat');
 		}
@@ -132,7 +258,7 @@ class AiBridgeManager
 
 	public function stream(string $provider, array $messages, array $options = []): \Generator
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->resolveProvider($provider, $options);
 		if (!$p || !$p instanceof ChatProviderContract || !$p->supportsStreaming()) {
 			throw ProviderException::unsupported($provider, 'streaming');
 		}
@@ -145,7 +271,7 @@ class AiBridgeManager
 	 */
 	public function streamEvents(string $provider, array $messages, array $options = []): \Generator
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->resolveProvider($provider, $options);
 		if (!$p || !$p instanceof ChatProviderContract || !$p->supportsStreaming()) {
 			throw ProviderException::unsupported($provider, 'streaming');
 		}
@@ -165,7 +291,7 @@ class AiBridgeManager
 
 	public function embeddings(string $provider, array $inputs, array $options = []): array
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->resolveProvider($provider, $options);
 		if (!$p || !$p instanceof EmbeddingsProviderContract) {
 			throw ProviderException::unsupported($provider, 'embeddings');
 		}
@@ -174,7 +300,7 @@ class AiBridgeManager
 
 	public function models(string $provider): array
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->providers[$provider] ?? null; // models are typically on pre-configured providers only
 		if (!$p || !$p instanceof ModelsProviderContract) {
 			throw ProviderException::unsupported($provider, 'models');
 		}
@@ -183,7 +309,7 @@ class AiBridgeManager
 
 	public function model(string $provider, string $id): array
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->providers[$provider] ?? null; // requires pre-configured provider
 		if (!$p || !$p instanceof ModelsProviderContract) {
 			throw ProviderException::unsupported($provider, 'model');
 		}
@@ -192,7 +318,7 @@ class AiBridgeManager
 
 	public function image(string $provider, string $prompt, array $options = []): array
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->resolveProvider($provider, $options);
 		if (!$p || !$p instanceof ImageProviderContract) {
 			throw ProviderException::unsupported($provider, 'image');
 		}
@@ -201,7 +327,7 @@ class AiBridgeManager
 
 	public function tts(string $provider, string $text, array $options = []): array
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->resolveProvider($provider, $options);
 		if (!$p || !$p instanceof AudioProviderContract) {
 			throw ProviderException::unsupported($provider, 'tts');
 		}
@@ -210,7 +336,7 @@ class AiBridgeManager
 
 	public function stt(string $provider, string $path, array $options = []): array
 	{
-		$p = $this->providers[$provider] ?? null;
+		$p = $this->resolveProvider($provider, $options);
 		if (!$p || !$p instanceof AudioProviderContract) {
 			throw ProviderException::unsupported($provider, 'stt');
 		}

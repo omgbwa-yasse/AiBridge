@@ -75,7 +75,7 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
             }
         }
         $payload = [
-            'model' => $options['model'] ?? 'llama2',
+            'model' => $options['model'] ?? 'gemma3:4b',
             'messages' => $this->normalizeMessages($messages),
             'stream' => false,
         ];
@@ -143,7 +143,7 @@ class OllamaProvider implements ChatProviderContract, EmbeddingsProviderContract
                 unset($messages[$i]['attachments']);
             }
         }
-    $payload = [ 'model' => $options['model'] ?? 'llama2', 'messages' => $this->normalizeMessages($messages), 'stream' => true ];
+    $payload = [ 'model' => $options['model'] ?? 'gemma3:4b', 'messages' => $this->normalizeMessages($messages), 'stream' => true ];
     if (!empty($options['temperature'])) { $payload['options']['temperature'] = $options['temperature']; }
     if (!empty($options['top_p'])) { $payload['options']['top_p'] = $options['top_p']; }
     if (!empty($options['top_k'])) { $payload['options']['top_k'] = $options['top_k']; }

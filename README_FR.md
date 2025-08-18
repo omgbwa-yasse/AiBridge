@@ -456,6 +456,38 @@ Ou via PHPUnit directement :
 ./vendor/bin/phpunit
 ```
 
+## Surcharges par appel (v2.0+)
+
+Vous pouvez désormais fournir les paramètres des providers directement lors de l'appel, sans modifier la config/env :
+
+- OpenAI: `api_key`, `chat_endpoint` (optionnel)
+- Ollama: `endpoint`
+- Ollama Turbo: `api_key`, `endpoint` (optionnel)
+- Claude/Grok/ONN/Gemini: `api_key`, `endpoint` (optionnel)
+- OpenAI compatible: `api_key`, `base_url`, et éventuellement `paths`, `auth_header`, `auth_prefix`, `extra_headers`
+
+Exemples:
+
+```php
+$res = app('AiBridge')->chat('ollama', $messages, [
+    'endpoint' => 'http://localhost:11434',
+    'model' => 'llama3.1'
+]);
+
+$res = app('AiBridge')->chat('openai', $messages, [
+    'api_key' => env('OPENAI_API_KEY'),
+    'chat_endpoint' => 'https://api.openai.com/v1/chat/completions',
+]);
+
+$res = app('AiBridge')->chat('openai_custom', $messages, [
+    'api_key' => 'ollama',
+    'base_url' => 'http://localhost:11434/v1',
+    'paths' => ['chat' => '/chat/completions']
+]);
+```
+
+Voir `CHANGELOG.md` pour le détail des changements de la v2.0.
+
 ## Développement
 
 ### Contribution

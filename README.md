@@ -759,3 +759,35 @@ This package is not officially affiliated with OpenAI, Anthropic, Google, or oth
 - 🐛 [Report a Bug](https://github.com/omgbwa-yasse/AiBridge/issues)
 - 💬 [Discussions](https://github.com/omgbwa-yasse/AiBridge/discussions)
 - ⭐ Don't forget to star the project if it helps you!
+
+## Per-call overrides (v2.0+)
+
+You can now pass provider credentials and endpoints directly on each call, without editing config:
+
+- OpenAI: `api_key`, optional `chat_endpoint`
+- Ollama: `endpoint`
+- Ollama Turbo: `api_key`, optional `endpoint`
+- Claude/Grok/ONN/Gemini: `api_key`, optional `endpoint`
+- Custom OpenAI-compatible: `api_key`, `base_url`, optional `paths`, `auth_header`, `auth_prefix`, `extra_headers`
+
+Examples:
+
+```php
+$res = app('AiBridge')->chat('ollama', $messages, [
+    'endpoint' => 'http://localhost:11434',
+    'model' => 'llama3',
+]);
+
+$res = app('AiBridge')->chat('openai', $messages, [
+    'api_key' => getenv('OPENAI_API_KEY'),
+    'chat_endpoint' => 'https://api.openai.com/v1/chat/completions',
+]);
+
+$res = app('AiBridge')->chat('openai_custom', $messages, [
+    'api_key' => 'ollama', // for Ollama OpenAI-compatible mode
+    'base_url' => 'http://localhost:11434/v1',
+    'paths' => [ 'chat' => '/chat/completions' ],
+]);
+```
+
+See `CHANGELOG.md` for details.
