@@ -106,7 +106,22 @@ class TextBuilder
     public function asStream(): \Generator
     {
         if (!$this->provider || !$this->model) { throw new \InvalidArgumentException(self::ERR_MISSING_USING); }
-        return $this->manager->stream($this->provider, $this->buildMessages(), $this->callOptions());
+        // Wrap raw chunks into structured StreamChunk when possible
+        foreach ($this->manager->stream($this->provider, $this->buildMessages(), $this->callOptions()) as $chunk) {
+            if (is_string($chunk)) {
+                yield new \AiBridge\Support\StreamChunk($chunk);
+            } elseif (is_array($chunk)) {
+                $text = (string)($chunk['delta'] ?? $chunk['text'] ?? '');
+                $usage = $chunk['usage'] ?? null;
+                $finish = $chunk['finish_reason'] ?? null;
+                $type = $chunk['type'] ?? 'delta';
+                $toolCalls = $chunk['tool_calls'] ?? [];
+                $toolResults = $chunk['tool_results'] ?? [];
+                yield new \AiBridge\Support\StreamChunk($text, $usage, $finish, $type, $toolCalls, $toolResults);
+            } else {
+                yield new \AiBridge\Support\StreamChunk((string)$chunk);
+            }
+        }
     }
 
     // Attachments helpers (avoid manual arrays)

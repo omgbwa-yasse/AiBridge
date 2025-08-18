@@ -165,6 +165,64 @@ echo $out['text'];
 
 This complements the classic API and can reduce errors versus large option arrays.
 
+### Streaming Output (builder)
+
+Show model responses as they generate:
+
+```php
+use AiBridge\Facades\AiBridge;
+
+$stream = AiBridge::text()
+    ->using('openai', 'gpt-4o', ['api_key' => getenv('OPENAI_API_KEY')])
+    ->withPrompt('Tell me a short story about a brave knight.')
+    ->asStream();
+
+foreach ($stream as $chunk) {
+    // $chunk is AiBridge\Support\StreamChunk
+    echo $chunk->text;
+    if (function_exists('ob_flush')) { @ob_flush(); }
+    if (function_exists('flush')) { @flush(); }
+}
+```
+
+Laravel controller (Server-Sent Events):
+
+```php
+use Illuminate\Http\Response;
+use AiBridge\Facades\AiBridge;
+
+return response()->stream(function() {
+    $stream = AiBridge::text()
+        ->using('openai', 'gpt-4o', ['api_key' => env('OPENAI_API_KEY')])
+        ->withPrompt('Explain quantum computing step by step.')
+        ->asStream();
+    foreach ($stream as $chunk) {
+        echo $chunk->text;
+        @ob_flush(); @flush();
+    }
+}, 200, [
+    'Cache-Control' => 'no-cache',
+    'Content-Type' => 'text/event-stream',
+    'X-Accel-Buffering' => 'no',
+]);
+```
+
+Laravel 12 Event Streams:
+
+```php
+Route::get('/chat', function () {
+    return response()->eventStream(function () {
+        $stream = AiBridge::text()
+            ->using('openai', 'gpt-4o', ['api_key' => env('OPENAI_API_KEY')])
+            ->withPrompt('Explain quantum computing step by step.')
+            ->asStream();
+        foreach ($stream as $resp) { yield $resp->text; }
+    });
+});
+```
+
+Note: Packages that intercept Laravel HTTP client streams (e.g., Telescope) can consume the stream. Disable or exclude AiBridge requests for streaming endpoints.
+
 ### Real-time Streaming
 
 ```php

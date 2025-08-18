@@ -146,6 +146,56 @@ echo $out['text'];
 
 Cette API complète l'API classique et réduit les erreurs liées aux grands tableaux d'options.
 
+### Streaming (builder)
+
+Afficher les réponses au fur et à mesure de leur génération :
+
+```php
+use AiBridge\Facades\AiBridge;
+
+$stream = AiBridge::text()
+    ->using('openai', 'gpt-4o', ['api_key' => env('OPENAI_API_KEY')])
+    ->withPrompt('Raconte une courte histoire de chevalier.')
+    ->asStream();
+
+foreach ($stream as $chunk) {
+    echo $chunk->text; // AiBridge\Support\StreamChunk
+    @ob_flush(); @flush();
+}
+```
+
+Contrôleur Laravel (SSE) :
+
+```php
+return response()->stream(function () {
+    $stream = AiBridge::text()
+        ->using('openai', 'gpt-4o', ['api_key' => env('OPENAI_API_KEY')])
+        ->withPrompt('Explique l\'informatique quantique pas à pas.')
+        ->asStream();
+    foreach ($stream as $chunk) { echo $chunk->text; @ob_flush(); @flush(); }
+}, 200, [
+    'Cache-Control' => 'no-cache',
+    'Content-Type' => 'text/event-stream',
+    'X-Accel-Buffering' => 'no',
+]);
+```
+
+Laravel 12 Event Streams :
+
+```php
+Route::get('/chat', function () {
+    return response()->eventStream(function () {
+        $stream = AiBridge::text()
+            ->using('openai', 'gpt-4o', ['api_key' => env('OPENAI_API_KEY')])
+            ->withPrompt('Explique l\'informatique quantique pas à pas.')
+            ->asStream();
+        foreach ($stream as $resp) { yield $resp->text; }
+    });
+});
+```
+
+Note : Des paquets comme Telescope pouvant intercepter les flux de l'HTTP client Laravel peuvent consommer le flux. Désactivez-les ou excluez les requêtes AiBridge pour ces endpoints.
+
 ### Streaming en temps réel
 
 ```php

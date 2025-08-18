@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## v2.5.0 (2025-08-18)
+
+Added
+
+- Fluent TextBuilder API for simpler, chainable text generation: `AiBridge::text()` with `using()`, `withPrompt()`, `withSystemPrompt()`, `withMaxTokens()`, `usingTemperature()`, `usingTopP()`, and outputs via `asText()`, `asRaw()`, `asStream()`.
+- Structured streaming via `AiBridge\Support\StreamChunk`: `asStream()` now yields normalized chunks with `text`, `usage`, `finishReason`, `chunkType`, `toolCalls`, and `toolResults` when available.
+- Documentation updates (EN/FR): new sections “Fluent text builder” and “Streaming Output (builder)” with Laravel SSE/Event Streams examples and streaming caveats.
+- Examples: `examples/builder_ollama_smoke.php` and `examples/builder_stream_ollama.php` showcase builder chat and streaming.
+
+Changed
+
+- Stream builder wraps provider deltas into `StreamChunk` for consistent handling across providers.
+- Notes on HTTP client interceptors (e.g., Telescope) that can consume streams.
+
+Fixed
+
+- Minor README cleanups and typos.
+
 ## v2.0.0 (2025-08-18)
 
 Added
