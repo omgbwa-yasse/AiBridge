@@ -139,6 +139,32 @@ echo $normalized['text'];
 
 ## Advanced Features
 
+### Fluent text builder (v2.1+)
+
+Prefer short, explicit methods instead of large option arrays when generating text:
+
+```php
+use AiBridge\Facades\AiBridge;
+
+$out = AiBridge::text()
+    ->using('claude', 'claude-3-5-sonnet-20240620', [ 'api_key' => getenv('CLAUDE_API_KEY') ])
+    ->withSystemPrompt('You are concise.')
+    ->withPrompt('Explain gravity in one sentence.')
+    ->withMaxTokens(64)
+    ->usingTemperature(0.2)
+    ->asText();
+
+echo $out['text'];
+```
+
+- `using(provider, model, config)` sets the provider, model, and optional per-call config (`api_key`, `endpoint`, `base_url`, ...).
+- `withPrompt` appends a user message; `withSystemPrompt` prepends a system message.
+- `withMaxTokens`, `usingTemperature`, `usingTopP` control generation.
+- `asText()` returns a normalized array with `text`, `raw`, `usage`, and `finish_reason`.
+- `asRaw()` returns the raw provider payload; `asStream()` yields string chunks.
+
+This complements the classic API and can reduce errors versus large option arrays.
+
 ### Real-time Streaming
 
 ```php

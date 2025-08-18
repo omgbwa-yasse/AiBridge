@@ -120,6 +120,32 @@ echo $normalized['text'];
 
 ## Fonctionnalités avancées
 
+### Builder fluide pour le texte (v2.1+)
+
+Utilisez des méthodes courtes et explicites au lieu de grands tableaux d'options :
+
+```php
+use AiBridge\Facades\AiBridge;
+
+$out = AiBridge::text()
+    ->using('claude', 'claude-3-5-sonnet-20240620', [ 'api_key' => env('CLAUDE_API_KEY') ])
+    ->withSystemPrompt('Tu es concis.')
+    ->withPrompt('Explique la gravité en une phrase.')
+    ->withMaxTokens(64)
+    ->usingTemperature(0.2)
+    ->asText();
+
+echo $out['text'];
+```
+
+- `using(provider, model, config)` définit le provider, le modèle et une config par appel (clé API, endpoint...).
+- `withPrompt` ajoute un message utilisateur ; `withSystemPrompt` ajoute un message système en tête.
+- `withMaxTokens`, `usingTemperature`, `usingTopP` contrôlent la génération.
+- `asText()` renvoie un tableau normalisé (`text`, `raw`, `usage`, `finish_reason`).
+- `asRaw()` renvoie la réponse brute ; `asStream()` fournit des chunks en streaming.
+
+Cette API complète l'API classique et réduit les erreurs liées aux grands tableaux d'options.
+
 ### Streaming en temps réel
 
 ```php

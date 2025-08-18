@@ -34,4 +34,12 @@ class AiBridge extends Facade
     {
         return EmbeddingsNormalizer::normalize($raw);
     }
+
+    // New fluent builder for text generation
+    public static function text(): \AiBridge\Builders\TextBuilder
+    {
+        $app = \Illuminate\Support\Facades\Facade::getFacadeApplication();
+        $manager = $app->make('AiBridge');
+        return $manager->text();
+    }
 }

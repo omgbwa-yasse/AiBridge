@@ -343,6 +343,18 @@ class AiBridgeManager
 		return $p->speechToText($path, $options);
 	}
 
+	/**
+	 * Fluent builder entrypoint for text generation (chat), inspired by Prism's API.
+	 * Usage:
+	 *   AiBridge::text()->using('claude', 'claude-3-5-sonnet-20240620', ['api_key' => 'sk-...'])
+	 *                   ->withPrompt('Hello')
+	 *                   ->asText();
+	 */
+	public function text(): \AiBridge\Builders\TextBuilder
+	{
+		return new \AiBridge\Builders\TextBuilder($this);
+	}
+
 	// Tools API
 	public function registerTool(ToolContract $tool): self
 	{
