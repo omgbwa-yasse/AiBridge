@@ -24,6 +24,11 @@ return [
     'claude' => [
         'api_key' => env('CLAUDE_API_KEY'),
     ],
+    'mistral' => [
+        'api_key' => env('MISTRAL_API_KEY'),
+        // Optional override, defaults to https://api.mistral.ai/v1/chat/completions
+        'endpoint' => env('MISTRAL_ENDPOINT', 'https://api.mistral.ai/v1/chat/completions'),
+    ],
     'openai_custom' => [
         'api_key' => env('OPENAI_CUSTOM_API_KEY'),
     // For Ollama OpenAI-compat, set to http://localhost:11434/v1 and use api_key="ollama"

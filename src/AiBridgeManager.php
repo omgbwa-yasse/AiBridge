@@ -9,6 +9,7 @@ use AiBridge\Providers\OnnProvider;
 use AiBridge\Providers\GeminiProvider;
 use AiBridge\Providers\GrokProvider;
 use AiBridge\Providers\ClaudeProvider;
+use AiBridge\Providers\MistralProvider;
 use AiBridge\Providers\CustomOpenAIProvider;
 use AiBridge\Contracts\ChatProviderContract;
 use AiBridge\Contracts\EmbeddingsProviderContract;
@@ -52,6 +53,10 @@ class AiBridgeManager
 		}
 		if (!empty($config['claude']['api_key'])) {
 			$this->providers['claude'] = new ClaudeProvider($config['claude']['api_key']);
+		}
+		if (!empty($config['mistral']['api_key'])) {
+			$endpoint = $config['mistral']['endpoint'] ?? 'https://api.mistral.ai/v1/chat/completions';
+			$this->providers['mistral'] = new MistralProvider($config['mistral']['api_key'], $endpoint);
 		}
 		if (!empty($config['openai_custom']['api_key']) && !empty($config['openai_custom']['base_url'])) {
 			$c = $config['openai_custom'];
@@ -150,6 +155,13 @@ class AiBridgeManager
 				if ($api) {
 					$ep = $options['endpoint'] ?? 'https://api.anthropic.com/v1/messages';
 					$provider = new ClaudeProvider($api, $ep);
+				}
+				break;
+			case 'mistral':
+				$api = $options['api_key'] ?? null;
+				if ($api) {
+					$ep = $options['endpoint'] ?? 'https://api.mistral.ai/v1/chat/completions';
+					$provider = new MistralProvider($api, $ep);
 				}
 				break;
 			case 'openai_custom':
