@@ -12,9 +12,59 @@ Unified Laravel package for interacting with multiple LLM APIs (OpenAI, Ollama, 
 - 🎯 **Extensible system tools**
 - 🔧 **Laravel Facade** `AiBridge` for simplified access
 
-> ✅ **Status**: Stable - Consolidated API after fixes (v1.0)
+> ✅ **Status**: Stable - Consolidated API after fixes (v1.Notes:
 
-## Installation
+- Model IDs and capabilities depend on OpenRouter routing. Choose models accordingly.
+- The Referer/Title headers are optional but recommended to surface your app in OpenRouter's ecosystem.
+
+### Mistral AI
+
+Mistral AI provides an OpenAI-compatible API at https://api.mistral.ai. AiBridge includes a dedicated `MistralProvider` that extends OpenAI compatibility with Mistral-specific endpoints.
+
+Environment example:
+
+```env
+MISTRAL_API_KEY=your-mistral-key
+# Optional override (defaults to https://api.mistral.ai/v1/chat/completions)
+# MISTRAL_ENDPOINT=https://api.mistral.ai/v1/chat/completions
+```
+
+Usage examples (PHP):
+
+```php
+use AiBridge\Facades\AiBridge;
+
+// Chat
+$res = AiBridge::chat('mistral', [
+    ['role' => 'user', 'content' => 'Explain quantum computing in simple terms']
+], [ 'model' => 'mistral-small-latest' ]);
+echo $res['choices'][0]['message']['content'] ?? '';
+
+// Streaming
+foreach (AiBridge::stream('mistral', [
+    ['role' => 'user', 'content' => 'Write a haiku about AI']
+], [ 'model' => 'mistral-medium-latest' ]) as $chunk) {
+    echo $chunk;
+}
+
+// Embeddings
+$emb = AiBridge::embeddings('mistral', [
+    'hello world',
+    'bonjour le monde'
+], [ 'model' => 'mistral-embed' ]);
+$vectors = $emb['embeddings'];
+```
+
+Supported models:
+
+- `mistral-small-latest` - Fast and efficient for everyday tasks
+- `mistral-medium-latest` - Balanced performance and capability
+- `mistral-large-latest` - Most capable model for complex tasks
+- `mistral-embed` - Embedding model for semantic search
+
+Get your API key at: https://console.mistral.ai/
+
+### Models (list/retrieve) with OpenAI-compatible endpoints## Installation
 
 ```bash
 composer require omgbwa-yasse/aibridge
@@ -42,6 +92,10 @@ GEMINI_API_KEY=...
 CLAUDE_API_KEY=...
 GROK_API_KEY=...
 ONN_API_KEY=...
+# Mistral AI
+MISTRAL_API_KEY=...
+# Optional override (defaults to https://api.mistral.ai/v1/chat/completions)
+# MISTRAL_ENDPOINT=https://api.mistral.ai/v1/chat/completions
 # OpenRouter
 OPENROUTER_API_KEY=...
 # Optional override (defaults to https://openrouter.ai/api/v1)
@@ -468,6 +522,7 @@ echo $result['final']['message']['content'];
 | **OpenAI** | ✅ | ✅ | ✅ | ✅ (DALL-E) | ✅ | ✅ | ✅ Native |
 | **Ollama** | ✅ | ✅ | ✅ | ✅ (SD) | ❌ | ❌ | ✅ Generic |
 | **Ollama Turbo** | ✅ | ✅ | ✅ | ✅ (SD) | ❌ | ❌ | ✅ Generic |
+| **Mistral** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ Native |
 | **Gemini** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ Generic |
 | **Claude** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Generic |
 | **Grok** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ Generic |

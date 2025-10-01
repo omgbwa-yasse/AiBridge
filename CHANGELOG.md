@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## v2.6.0 (2025-09-30)
+
+Added
+
+- **Mistral AI Provider**: New native `MistralProvider` for Mistral AI API (https://api.mistral.ai) with OpenAI-compatible endpoints.
+  - Configuration: `MISTRAL_API_KEY` and optional `MISTRAL_ENDPOINT` environment variables.
+  - Supports chat, streaming, embeddings, and models listing.
+  - Example: `examples/mistral_smoke.php`
+- **Enhanced OpenRouter Support**: Improved `examples/openrouter_smoke.php` with better error handling, API key validation, and clearer usage instructions for Windows PowerShell.
+- **Multi-Provider Testing**: New `examples/multi_provider_smoke.php` for comprehensive testing of Mistral, OpenRouter, and Ollama Turbo providers in a single script.
+- **Improved Examples**: All smoke test examples now include:
+  - PowerShell-friendly environment variable setup instructions
+  - API key validation with helpful error messages
+  - Try/catch error handling for better debugging
+  - Exit codes for CI/CD integration
+
+Changed
+
+- Updated `AiBridgeManager` to support Mistral provider in both constructor and `buildProviderFromOptions()`.
+- Enhanced `config/AiBridge.php` with Mistral configuration section.
+- Improved documentation in example files with clearer Windows PowerShell usage patterns.
+
+Fixed
+
+- Escaped `$env` variable in PowerShell examples to prevent PHP interpretation warnings.
+- Consistent error handling across all smoke test examples.
+
 ## v2.5.0 (2025-08-18)
 
 Added
